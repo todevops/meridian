@@ -116,11 +116,11 @@ export default function DcimPage() {
     : null
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-6">
+    <div className="flex w-full flex-col gap-6 p-6">
       <header className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold">DCIM 数据中心设施</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1 text-xs text-muted-foreground">
             机房 / 机柜 / U 位与电力容量概览，点击机柜卡片进入 U
             位矩阵进行挂载/卸载
           </p>
@@ -152,7 +152,7 @@ export default function DcimPage() {
         </div>
       ) : error ? (
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed py-12">
-          <p className="text-sm text-destructive">{error}</p>
+          <p className="text-xs text-destructive">{error}</p>
           <Button variant="outline" size="sm" onClick={() => void load()}>
             重试
           </Button>
@@ -173,19 +173,19 @@ export default function DcimPage() {
             />
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-1.5 text-sm font-normal text-muted-foreground">
+                <CardTitle className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
                   <Building2Icon className="size-4" /> U 位占用
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-2">
                 <div className="text-2xl font-semibold">
                   {overview.u_used}
-                  <span className="text-sm font-normal text-muted-foreground">
+                  <span className="text-xs font-normal text-muted-foreground">
                     {" "}
                     / {overview.u_total} U
                   </span>
                   {globalPercent !== null && (
-                    <span className="ml-2 text-sm font-normal text-muted-foreground">
+                    <span className="ml-2 text-xs font-normal text-muted-foreground">
                       {globalPercent}%
                     </span>
                   )}
@@ -219,7 +219,7 @@ export default function DcimPage() {
                 <h2 className="text-base font-medium text-muted-foreground">
                   未分配机房
                 </h2>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   {overview.unassigned.rack_count} 柜 · U 位{" "}
                   {overview.unassigned.u_used}/{overview.unassigned.u_total} ·{" "}
                   {overview.unassigned.power_capacity_kw} kW
@@ -237,7 +237,7 @@ export default function DcimPage() {
           {overview.room_count === 0 && overview.rack_count === 0 && (
             <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed py-16">
               <WarehouseIcon className="size-8 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 暂无机房与机柜，可点击「新建机房」登记，或运行
                 scripts/seed-models.sh 导入种子模型
               </p>
@@ -276,7 +276,7 @@ function StatCard({
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-1.5 text-sm font-normal text-muted-foreground">
+        <CardTitle className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
           {icon} {label}
         </CardTitle>
       </CardHeader>
@@ -307,15 +307,15 @@ function RoomSection({
         <div className="flex items-baseline gap-2">
           <h2 className="text-base font-medium">{room.name || room.room_id}</h2>
           {room.code && (
-            <span className="text-sm text-muted-foreground">({room.code})</span>
+            <span className="text-xs text-muted-foreground">({room.code})</span>
           )}
           {room.address && (
-            <span className="text-sm text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               · {room.address}
             </span>
           )}
         </div>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           {room.rack_count} 柜 · U 位 {room.u_used}/{room.u_total}
           {percent !== null && ` (${percent}%)`} · {room.power_capacity_kw} kW
         </p>
@@ -328,7 +328,7 @@ function RoomSection({
           onAssign={onAssign}
         />
       ) : (
-        <p className="rounded-lg border border-dashed px-3 py-4 text-center text-sm text-muted-foreground">
+        <p className="rounded-lg border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">
           该机房暂无机柜
         </p>
       )}
@@ -365,14 +365,14 @@ function RackGrid({
                       {rack.name || rack.rack_id}
                     </span>
                     {percent !== null && (
-                      <span className="shrink-0 text-sm font-normal text-muted-foreground">
+                      <span className="shrink-0 text-xs font-normal text-muted-foreground">
                         {percent}%
                       </span>
                     )}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3">
-                  <dl className="flex flex-col gap-1.5 text-sm">
+                  <dl className="flex flex-col gap-1.5 text-xs">
                     <div className="flex items-center justify-between gap-4">
                       <dt className="text-muted-foreground">电力容量</dt>
                       <dd>{rack.power_capacity_kw} kW</dd>
@@ -487,7 +487,7 @@ function AssignRoomDialog({
             </Select>
           </div>
           {submitError && (
-            <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
               {submitError}
             </p>
           )}
@@ -611,7 +611,7 @@ function RoomCreateDialog({
             />
           </div>
           {submitError && (
-            <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
               {submitError}
             </p>
           )}

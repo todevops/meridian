@@ -98,7 +98,7 @@ export default function AlertsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">告警事件</h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             黑设备与系统侧告警事件；确认后从「未确认」列表移除（事件保留可审计）
           </p>
         </div>
@@ -118,12 +118,12 @@ export default function AlertsPage() {
             {t.label}
           </Button>
         ))}
-        <span className="ml-2 text-sm text-muted-foreground">共 {total} 条</span>
+        <span className="ml-2 text-xs text-muted-foreground">共 {total} 条</span>
       </div>
 
       {error && (
         <Card className="border-destructive/50">
-          <CardContent className="flex items-center justify-between gap-4 py-3 text-sm">
+          <CardContent className="flex items-center justify-between gap-4 py-3 text-xs">
             <span className="text-destructive">{error}</span>
             <Button variant="outline" size="sm" onClick={() => void load()}>
               重试
@@ -147,10 +147,10 @@ export default function AlertsPage() {
           ) : items.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-16">
               <BellRingIcon className="size-8 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">{emptyText}</p>
+              <p className="text-xs text-muted-foreground">{emptyText}</p>
             </div>
           ) : (
-            <table className="w-full text-sm">
+            <table className="w-full text-xs">
               <thead>
                 <tr className="border-b text-left text-muted-foreground">
                   <th className="px-4 py-2.5 font-medium">级别</th>

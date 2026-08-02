@@ -214,10 +214,10 @@ export default function PoolPage() {
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-6">
+    <div className="flex w-full flex-col gap-5 p-6">
       <header>
         <h1 className="text-xl font-semibold">发现池</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1 text-xs text-muted-foreground">
           各采集源上报的发现记录经调和后在此等待人工处置：确认入库或忽略
         </p>
       </header>
@@ -233,7 +233,7 @@ export default function PoolPage() {
               setStatus(s)
             }}
             className={cn(
-              "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors",
+              "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs transition-colors",
               status === s
                 ? "bg-background font-medium shadow-sm"
                 : "text-muted-foreground hover:text-foreground",
@@ -253,7 +253,7 @@ export default function PoolPage() {
         </div>
       ) : error ? (
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed py-12">
-          <p className="text-sm text-destructive">{error}</p>
+          <p className="text-xs text-destructive">{error}</p>
           <Button variant="outline" size="sm" onClick={() => void load()}>
             重试
           </Button>
@@ -302,7 +302,7 @@ export default function PoolPage() {
             </Table>
           </div>
 
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>共 {data?.total ?? 0} 条记录</span>
             <div className="flex items-center gap-2">
               <Button

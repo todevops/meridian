@@ -178,10 +178,10 @@ export default function CloudPage() {
   })
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-6">
+    <div className="flex w-full flex-col gap-5 p-6">
       <header>
         <h1 className="text-xl font-semibold">云资源</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1 text-xs text-muted-foreground">
           多云资源统一视图，由阿里云 / 火山引擎采集器经发现管道调和建档
         </p>
       </header>
@@ -193,7 +193,7 @@ export default function CloudPage() {
             key={key}
             type="button"
             onClick={() => setTab(key)}
-            className={`flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm transition-colors ${
+            className={`flex items-center gap-1.5 border-b-2 px-3 py-2 text-xs transition-colors ${
               tab === key
                 ? "border-primary font-medium text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground"
@@ -214,7 +214,7 @@ export default function CloudPage() {
         // VPC / RDS / SLB：统一占位，迭代 2C 接入对应云资源清单
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed py-16 text-muted-foreground">
           <CloudIcon className="size-8" />
-          <p className="text-sm">
+          <p className="text-xs">
             {TABS.find((item) => item.key === tab)?.label}{" "}
             台账将在迭代 2C 接入云采集器清单后展示
           </p>
@@ -228,7 +228,7 @@ export default function CloudPage() {
         </div>
       ) : error ? (
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed py-12">
-          <p className="text-sm text-destructive">{error}</p>
+          <p className="text-xs text-destructive">{error}</p>
           <Button variant="outline" size="sm" onClick={() => void load()}>
             重试
           </Button>
@@ -293,7 +293,7 @@ export default function CloudPage() {
             </Table>
           </div>
 
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>共 {table.getFilteredRowModel().rows.length} 台云主机</span>
             <div className="flex items-center gap-2">
               <Button

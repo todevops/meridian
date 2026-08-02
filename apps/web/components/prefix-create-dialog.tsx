@@ -170,7 +170,7 @@ export function PrefixCreateDialog({ open, onOpenChange, prefixes, onSaved }: Pr
           </div>
 
           {submitError ? (
-            <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
               {submitError}
             </p>
           ) : null}

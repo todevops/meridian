@@ -247,7 +247,7 @@ export function PrefixDrawer({ prefix, onOpenChange, onChanged }: PrefixDrawerPr
         {/* 子前缀 */}
         {children.length > 0 ? (
           <section className="flex flex-col gap-2">
-            <h3 className="text-sm font-medium">子前缀（{children.length}）</h3>
+            <h3 className="text-xs font-medium">子前缀（{children.length}）</h3>
             <div className="flex flex-wrap gap-2">
               {children.map((child) => (
                 <Badge key={child.id} variant="secondary">
@@ -260,7 +260,7 @@ export function PrefixDrawer({ prefix, onOpenChange, onChanged }: PrefixDrawerPr
 
         {/* 自动分配 IP */}
         <section className="flex flex-col gap-3 rounded-xl border p-4">
-          <h3 className="text-sm font-medium">分配 IP</h3>
+          <h3 className="text-xs font-medium">分配 IP</h3>
           <div className="grid grid-cols-[7rem_1fr_auto] items-end gap-2">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="alloc-count">数量</Label>
@@ -284,10 +284,10 @@ export function PrefixDrawer({ prefix, onOpenChange, onChanged }: PrefixDrawerPr
               {allocLoading ? "分配中…" : "分配"}
             </Button>
           </div>
-          {allocError ? <p className="text-sm text-destructive">{allocError}</p> : null}
+          {allocError ? <p className="text-xs text-destructive">{allocError}</p> : null}
           {allocResult !== null ? (
             <div className="flex flex-col gap-1.5">
-              <p className="text-sm text-emerald-600 dark:text-emerald-400">
+              <p className="text-xs text-emerald-600 dark:text-emerald-400">
                 分配成功{allocResult.length > 0 ? `（${allocResult.length} 个）` : ""}：
               </p>
               <div className="flex flex-wrap gap-1.5">
@@ -303,7 +303,7 @@ export function PrefixDrawer({ prefix, onOpenChange, onChanged }: PrefixDrawerPr
 
         {/* 手动登记 IP */}
         <section className="flex flex-col gap-3 rounded-xl border p-4">
-          <h3 className="text-sm font-medium">手动登记 IP</h3>
+          <h3 className="text-xs font-medium">手动登记 IP</h3>
           <div className="grid grid-cols-2 gap-2">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="reg-ip">
@@ -357,9 +357,9 @@ export function PrefixDrawer({ prefix, onOpenChange, onChanged }: PrefixDrawerPr
               />
             </div>
           </div>
-          {regError ? <p className="text-sm text-destructive">{regError}</p> : null}
+          {regError ? <p className="text-xs text-destructive">{regError}</p> : null}
           {regOk ? (
-            <p className="text-sm text-emerald-600 dark:text-emerald-400">{regOk}</p>
+            <p className="text-xs text-emerald-600 dark:text-emerald-400">{regOk}</p>
           ) : null}
           <div>
             <Button variant="secondary" onClick={() => void onRegister()} disabled={regLoading}>
@@ -370,7 +370,7 @@ export function PrefixDrawer({ prefix, onOpenChange, onChanged }: PrefixDrawerPr
 
         {/* IP 列表 */}
         <section className="flex flex-col gap-3">
-          <h3 className="text-sm font-medium">IP 列表{ips ? `（共 ${ips.total} 条）` : ""}</h3>
+          <h3 className="text-xs font-medium">IP 列表{ips ? `（共 ${ips.total} 条）` : ""}</h3>
           {loading && !ips ? (
             <div className="flex flex-col gap-2">
               {Array.from({ length: 5 }).map((_, index) => (
@@ -379,7 +379,7 @@ export function PrefixDrawer({ prefix, onOpenChange, onChanged }: PrefixDrawerPr
             </div>
           ) : error ? (
             <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed py-10">
-              <p className="text-sm text-destructive">{error}</p>
+              <p className="text-xs text-destructive">{error}</p>
               <Button variant="outline" size="sm" onClick={() => void load()}>
                 重试
               </Button>
@@ -436,7 +436,7 @@ export function PrefixDrawer({ prefix, onOpenChange, onChanged }: PrefixDrawerPr
                   </TableBody>
                 </Table>
               </div>
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>共 {ips?.total ?? 0} 条</span>
                 <div className="flex items-center gap-2">
                   <Button

@@ -133,7 +133,7 @@ export function HostDetail({ id }: { id: string }) {
 
   if (loading) {
     return (
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-6">
+      <div className="flex w-full flex-col gap-5 p-6">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-40 w-full" />
         <Skeleton className="h-40 w-full" />
@@ -144,15 +144,15 @@ export function HostDetail({ id }: { id: string }) {
 
   if (error || !ci) {
     return (
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-6">
+      <div className="flex w-full flex-col gap-5 p-6">
         <Link
           href="/hosts"
-          className="flex w-fit items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+          className="flex w-fit items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
         >
           <ArrowLeftIcon className="size-4" /> 返回主机列表
         </Link>
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed py-16">
-          <p className="text-sm text-destructive">{error ?? "加载主机详情失败"}</p>
+          <p className="text-xs text-destructive">{error ?? "加载主机详情失败"}</p>
           <Button variant="outline" size="sm" onClick={() => void load()}>
             重试
           </Button>
@@ -164,10 +164,10 @@ export function HostDetail({ id }: { id: string }) {
   const title = pickAttr(ci.attributes, PEER_NAME_CODES)
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-6">
+    <div className="flex w-full flex-col gap-5 p-6">
       <Link
         href="/hosts"
-        className="flex w-fit items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+        className="flex w-fit items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
       >
         <ArrowLeftIcon className="size-4" /> 返回主机列表
       </Link>
@@ -179,7 +179,7 @@ export function HostDetail({ id }: { id: string }) {
           <Badge variant="outline">来源：{ci.source}</Badge>
           {model ? <Badge variant="secondary">模型：{model.name}</Badge> : null}
         </div>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           创建于 {formatDateTime(ci.created_at)} · 更新于 {formatDateTime(ci.updated_at)}
         </p>
       </header>
@@ -193,11 +193,11 @@ export function HostDetail({ id }: { id: string }) {
           </CardHeader>
           <CardContent>
             {groups[meta.key].length === 0 ? (
-              <p className="text-sm text-muted-foreground">暂无属性</p>
+              <p className="text-xs text-muted-foreground">暂无属性</p>
             ) : (
               <dl className="grid grid-cols-1 gap-x-8 gap-y-2.5 sm:grid-cols-2">
                 {groups[meta.key].map((attr) => (
-                  <div key={attr.code} className="flex items-baseline justify-between gap-4 text-sm">
+                  <div key={attr.code} className="flex items-baseline justify-between gap-4 text-xs">
                     <dt className="shrink-0 text-muted-foreground">{attr.label}</dt>
                     <dd className="min-w-0 text-right break-all">{attr.value}</dd>
                   </div>
@@ -217,7 +217,7 @@ export function HostDetail({ id }: { id: string }) {
           </CardHeader>
           <CardContent>
             {relations.length === 0 ? (
-              <p className="text-sm text-muted-foreground">暂无关系</p>
+              <p className="text-xs text-muted-foreground">暂无关系</p>
             ) : (
               <ul className="flex flex-col gap-2">
                 {relations.map((rel, index) => {
@@ -225,7 +225,7 @@ export function HostDetail({ id }: { id: string }) {
                   return (
                     <li
                       key={`${rel.relation_code}-${rel.peer_ci.id}-${index}`}
-                      className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm"
+                      className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-xs"
                     >
                       <span className="flex items-center gap-2">
                         <Badge variant="secondary">
@@ -264,7 +264,7 @@ export function HostDetail({ id }: { id: string }) {
             <CardDescription>按 CI 回放全部写操作与调和历史</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               待审计 API 上线后接入：届时此处将展示该 CI 的属性变更、状态流转与来源记录时间线。
             </p>
           </CardContent>

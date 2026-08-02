@@ -22,17 +22,17 @@ export function PlaceholderPage({
   icon: Icon = ConstructionIcon,
 }: PlaceholderPageProps) {
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 p-6">
+    <div className="flex w-full flex-col gap-5 p-6">
       <header>
         <h1 className="flex items-center gap-2 text-xl font-semibold">
           {title}
           <Badge variant="secondary">{eta}</Badge>
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{description}</p>
       </header>
       <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed py-16 text-muted-foreground">
         <Icon className="size-8" />
-        <p className="text-sm">该模块正在建设中，{eta}</p>
+        <p className="text-xs">该模块正在建设中，{eta}</p>
       </div>
     </div>
   )

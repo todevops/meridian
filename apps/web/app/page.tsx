@@ -247,10 +247,10 @@ export default function Page() {
   const totalHits = groups?.reduce((sum, g) => sum + g.items.length, 0) ?? 0
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
+    <div className="flex w-full flex-col gap-6 p-6">
       <header className="flex flex-col items-center gap-4 pt-8 text-center">
         <h1 className="text-2xl font-semibold">CMDB 配置管理中心</h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           全局搜索模型、CI 实例、IPAM 地址与机房机柜
         </p>
         <div className="relative w-full max-w-xl">
@@ -269,7 +269,7 @@ export default function Page() {
       </header>
 
       {error && (
-        <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
           {error}
         </p>
       )}
@@ -279,7 +279,7 @@ export default function Page() {
         <>
           {SECTION_GROUPS.map((group) => (
             <section key={group.key} className="flex flex-col gap-3">
-              <h2 className="text-sm font-medium text-muted-foreground">
+              <h2 className="text-xs font-medium text-muted-foreground">
                 {group.label}
               </h2>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -302,7 +302,7 @@ export default function Page() {
           ))}
 
           <section className="flex flex-col gap-3">
-            <h2 className="text-sm font-medium text-muted-foreground">
+            <h2 className="text-xs font-medium text-muted-foreground">
               规划中
             </h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -335,13 +335,13 @@ export default function Page() {
         </div>
       )}
       {query && groups && totalHits === 0 && (
-        <p className="py-12 text-center text-sm text-muted-foreground">
+        <p className="py-12 text-center text-xs text-muted-foreground">
           没有找到与「{query}」相关的内容
         </p>
       )}
       {groups?.map((group) => (
         <section key={group.kind} className="flex flex-col gap-2">
-          <h2 className="text-sm font-medium text-muted-foreground">
+          <h2 className="text-xs font-medium text-muted-foreground">
             {group.label}（{group.items.length}）
           </h2>
           <div className="flex flex-col gap-1.5">
@@ -353,7 +353,7 @@ export default function Page() {
               >
                 <div className="flex min-w-0 items-baseline gap-3">
                   <span className="shrink-0 font-medium">{item.title}</span>
-                  <span className="truncate text-sm text-muted-foreground">
+                  <span className="truncate text-xs text-muted-foreground">
                     {item.subtitle}
                   </span>
                 </div>

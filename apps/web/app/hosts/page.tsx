@@ -186,10 +186,10 @@ export default function HostsPage() {
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-6">
+    <div className="flex w-full flex-col gap-5 p-6">
       <header>
         <h1 className="text-xl font-semibold">主机列表</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1 text-xs text-muted-foreground">
           主机 CI 由 n9e 心跳、vSphere、云 API
           等来源自动调和建档，点击行查看详情
         </p>
@@ -239,7 +239,7 @@ export default function HostsPage() {
         </div>
       ) : error ? (
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed py-12">
-          <p className="text-sm text-destructive">{error}</p>
+          <p className="text-xs text-destructive">{error}</p>
           <Button variant="outline" size="sm" onClick={() => void load()}>
             重试
           </Button>
@@ -298,7 +298,7 @@ export default function HostsPage() {
             </Table>
           </div>
 
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>共 {data?.total ?? 0} 台主机</span>
             <div className="flex items-center gap-2">
               <Button

@@ -93,7 +93,7 @@ export function CredentialAuditDrawer({
           </div>
         ) : error ? (
           <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed py-12">
-            <p className="text-sm text-destructive">{error}</p>
+            <p className="text-xs text-destructive">{error}</p>
             <Button variant="outline" size="sm" onClick={() => void load()}>
               重试
             </Button>
@@ -140,7 +140,7 @@ export function CredentialAuditDrawer({
               </Table>
             </div>
 
-            <div className="flex items-center justify-between text-sm text-muted-foreground">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>共 {data?.total ?? 0} 条记录</span>
               <div className="flex items-center gap-2">
                 <Button

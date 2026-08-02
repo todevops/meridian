@@ -154,11 +154,11 @@ export default function IpamPage() {
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-6">
+    <div className="flex w-full flex-col gap-5 p-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">IPAM 地址管理</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1 text-xs text-muted-foreground">
             子网前缀与 IP 地址的登记、分配与利用率统计，点击行查看前缀下的 IP 明细
           </p>
         </div>
@@ -185,7 +185,7 @@ export default function IpamPage() {
         </div>
       ) : error ? (
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed py-12">
-          <p className="text-sm text-destructive">{error}</p>
+          <p className="text-xs text-destructive">{error}</p>
           <Button variant="outline" size="sm" onClick={() => void load()}>
             重试
           </Button>
@@ -236,7 +236,7 @@ export default function IpamPage() {
             </Table>
           </div>
 
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>共 {data?.total ?? 0} 个前缀</span>
             <div className="flex items-center gap-2">
               <Button

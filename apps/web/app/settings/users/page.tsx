@@ -96,7 +96,7 @@ export default function UsersPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold">用户管理</h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             系统账号的新建、角色分配、启停与密码重置
           </p>
         </div>
@@ -124,7 +124,7 @@ export default function UsersPage() {
       </div>
 
       {error && (
-        <div className="flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <div className="flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
           {error}
           <Button variant="outline" size="sm" onClick={load}>
             重试
@@ -219,7 +219,7 @@ export default function UsersPage() {
       </div>
 
       {data && data.total > PAGE_SIZE && (
-        <div className="flex items-center justify-end gap-2 text-sm text-muted-foreground">
+        <div className="flex items-center justify-end gap-2 text-xs text-muted-foreground">
           <span>
             第 {data.page} / {totalPages} 页，共 {data.total} 条
           </span>
@@ -410,7 +410,7 @@ function UserFormDialog({
                   {roles.map((role) => (
                     <label
                       key={role.code}
-                      className="flex cursor-pointer items-center gap-1.5 text-sm"
+                      className="flex cursor-pointer items-center gap-1.5 text-xs"
                     >
                       <Checkbox
                         checked={selectedRoles.includes(role.code)}
@@ -448,7 +448,7 @@ function UserFormDialog({
             </>
           )}
           {submitError && (
-            <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
               {submitError}
             </p>
           )}

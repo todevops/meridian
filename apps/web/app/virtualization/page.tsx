@@ -173,7 +173,7 @@ export default function VirtualizationPage() {
       key={host.id}
       type="button"
       onClick={() => setSelectedHostId(host.id)}
-      className={`flex w-full items-center gap-2 rounded-md py-1.5 pr-2 pl-8 text-left text-sm transition-colors hover:bg-muted ${
+      className={`flex w-full items-center gap-2 rounded-md py-1.5 pr-2 pl-8 text-left text-xs transition-colors hover:bg-muted ${
         selectedHostId === host.id ? "bg-muted font-medium" : ""
       }`}
     >
@@ -183,10 +183,10 @@ export default function VirtualizationPage() {
   )
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-6">
+    <div className="flex w-full flex-col gap-5 p-6">
       <header>
         <h1 className="text-xl font-semibold">虚拟化视图</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1 text-xs text-muted-foreground">
           集群 → ESXi 主机 → 虚拟机三级清单，由 vSphere 采集器自动建档并动态维护从属关系
         </p>
       </header>
@@ -198,7 +198,7 @@ export default function VirtualizationPage() {
         </div>
       ) : error ? (
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed py-12">
-          <p className="text-sm text-destructive">{error}</p>
+          <p className="text-xs text-destructive">{error}</p>
           <Button variant="outline" size="sm" onClick={() => void load()}>
             重试
           </Button>
@@ -207,11 +207,11 @@ export default function VirtualizationPage() {
         <div className="flex flex-col gap-5 lg:flex-row">
           {/* 左侧：集群树 */}
           <aside className="w-full shrink-0 rounded-xl border p-3 lg:w-72">
-            <h2 className="mb-2 flex items-center gap-2 px-1 text-sm font-semibold">
+            <h2 className="mb-2 flex items-center gap-2 px-1 text-xs font-semibold">
               <LayersIcon className="size-4" /> 集群（{clusters?.length ?? 0}）
             </h2>
             {(clusters?.length ?? 0) === 0 && tree.unassigned.length === 0 ? (
-              <p className="px-1 py-8 text-center text-sm text-muted-foreground">
+              <p className="px-1 py-8 text-center text-xs text-muted-foreground">
                 暂无虚拟化数据，等待 vSphere 采集器上报
               </p>
             ) : (
@@ -224,7 +224,7 @@ export default function VirtualizationPage() {
                       <button
                         type="button"
                         onClick={() => toggleCluster(cluster.id)}
-                        className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm font-medium transition-colors hover:bg-muted"
+                        className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs font-medium transition-colors hover:bg-muted"
                       >
                         {isOpen ? (
                           <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground" />
@@ -254,7 +254,7 @@ export default function VirtualizationPage() {
                 })}
                 {tree.unassigned.length > 0 ? (
                   <div>
-                    <p className="px-2 py-1.5 text-sm font-medium text-muted-foreground">
+                    <p className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
                       未分配集群
                     </p>
                     <div className="flex flex-col gap-0.5">
@@ -271,12 +271,12 @@ export default function VirtualizationPage() {
             {!selectedHost ? (
               <div className="flex h-full flex-col items-center justify-center gap-2 py-20 text-muted-foreground">
                 <ServerIcon className="size-8" />
-                <p className="text-sm">从左侧选择一台 ESXi 主机，查看其虚拟机清单</p>
+                <p className="text-xs">从左侧选择一台 ESXi 主机，查看其虚拟机清单</p>
               </div>
             ) : (
               <>
                 <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
-                  <h2 className="truncate text-sm font-semibold">
+                  <h2 className="truncate text-xs font-semibold">
                     {displayName(selectedHost, HOST_NAME_CODES)} 的虚拟机
                     {vms ? `（${vms.length}）` : ""}
                   </h2>

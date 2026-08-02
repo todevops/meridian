@@ -190,7 +190,7 @@ export function PoolConfirmDialog({ open, onOpenChange, record, onConfirmed }: P
 
           <section className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium">入库属性（{attrFields.fields.length}）</h3>
+              <h3 className="text-xs font-medium">入库属性（{attrFields.fields.length}）</h3>
               <Button
                 type="button"
                 variant="outline"
@@ -201,7 +201,7 @@ export function PoolConfirmDialog({ open, onOpenChange, record, onConfirmed }: P
               </Button>
             </div>
             {attrFields.fields.length === 0 ? (
-              <p className="rounded-lg border border-dashed px-3 py-4 text-center text-sm text-muted-foreground">
+              <p className="rounded-lg border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">
                 暂无属性，点击「添加属性」补充
               </p>
             ) : (
@@ -229,7 +229,7 @@ export function PoolConfirmDialog({ open, onOpenChange, record, onConfirmed }: P
           </section>
 
           {submitError ? (
-            <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
               {submitError}
             </p>
           ) : null}

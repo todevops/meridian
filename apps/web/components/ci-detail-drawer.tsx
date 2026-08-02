@@ -133,7 +133,7 @@ export function CIDetailDrawer({
             </DrawerHeader>
 
             <section className="flex flex-col gap-2">
-              <h2 className="text-sm font-semibold">属性</h2>
+              <h2 className="text-xs font-semibold">属性</h2>
               {model === null ? (
                 <div className="flex flex-col gap-2">
                   {Array.from({ length: 4 }).map((_, index) => (
@@ -141,13 +141,13 @@ export function CIDetailDrawer({
                   ))}
                 </div>
               ) : attrs.length === 0 ? (
-                <p className="text-sm text-muted-foreground">暂无属性</p>
+                <p className="text-xs text-muted-foreground">暂无属性</p>
               ) : (
                 <dl className="flex flex-col gap-2 rounded-lg border p-3">
                   {attrs.map((attr) => (
                     <div
                       key={attr.code}
-                      className="flex items-baseline justify-between gap-4 text-sm"
+                      className="flex items-baseline justify-between gap-4 text-xs"
                     >
                       <dt className="shrink-0 text-muted-foreground">
                         {attr.label}
@@ -162,13 +162,13 @@ export function CIDetailDrawer({
             </section>
 
             <section className="flex flex-col gap-2">
-              <h2 className="text-sm font-semibold">
+              <h2 className="text-xs font-semibold">
                 关系{relations ? `（${relations.length}）` : ""}
               </h2>
               {relations === null ? (
                 <Skeleton className="h-10 w-full" />
               ) : relations.length === 0 ? (
-                <p className="text-sm text-muted-foreground">暂无关系</p>
+                <p className="text-xs text-muted-foreground">暂无关系</p>
               ) : (
                 <ul className="flex flex-col gap-2">
                   {relations.map((rel, index) => {
@@ -180,7 +180,7 @@ export function CIDetailDrawer({
                     return (
                       <li
                         key={`${rel.relation_code}-${rel.peer_ci.id}-${index}`}
-                        className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm"
+                        className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-xs"
                       >
                         <span className="flex items-center gap-2">
                           <Badge variant="secondary">

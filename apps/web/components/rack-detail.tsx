@@ -127,7 +127,7 @@ export function RackDetail({ id }: { id: string }) {
 
   if (loading) {
     return (
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-6">
+      <div className="flex w-full flex-col gap-5 p-6">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-[560px] w-full max-w-md" />
       </div>
@@ -136,15 +136,15 @@ export function RackDetail({ id }: { id: string }) {
 
   if (error) {
     return (
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-6">
+      <div className="flex w-full flex-col gap-5 p-6">
         <Link
           href="/dcim"
-          className="flex w-fit items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+          className="flex w-fit items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
         >
           <ArrowLeftIcon className="size-4" /> 返回机柜列表
         </Link>
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed py-16">
-          <p className="text-sm text-destructive">{error}</p>
+          <p className="text-xs text-destructive">{error}</p>
           <Button variant="outline" size="sm" onClick={() => void load()}>
             重试
           </Button>
@@ -156,10 +156,10 @@ export function RackDetail({ id }: { id: string }) {
   const rackName = rack ? pickAttr(rack.attributes, [...RACK_NAME_CODES]) : "—"
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-6">
+    <div className="flex w-full flex-col gap-5 p-6">
       <Link
         href="/dcim"
-        className="flex w-fit items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+        className="flex w-fit items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
       >
         <ArrowLeftIcon className="size-4" /> 返回机柜列表
       </Link>
@@ -173,7 +173,7 @@ export function RackDetail({ id }: { id: string }) {
             已用 {usedU} / {uTotal} U
           </Badge>
         </div>
-        <p className="text-sm text-muted-foreground">点击空闲 U 位挂载设备，点击占用块的按钮卸载</p>
+        <p className="text-xs text-muted-foreground">点击空闲 U 位挂载设备，点击占用块的按钮卸载</p>
       </header>
 
       {/* U 位矩阵：自上而下 U 高 → U 低，两侧导轨刻度 */}

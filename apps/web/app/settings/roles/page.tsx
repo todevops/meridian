@@ -90,7 +90,7 @@ export default function RolesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold">角色管理</h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             角色是权限点的集合，用户经角色获得权限
           </p>
         </div>
@@ -105,7 +105,7 @@ export default function RolesPage() {
       </div>
 
       {error && (
-        <div className="flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <div className="flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
           {error}
           <Button variant="outline" size="sm" onClick={load}>
             重试
@@ -357,7 +357,7 @@ function RoleFormDialog({
               {permissions.map((perm) => (
                 <label
                   key={perm.code}
-                  className="flex cursor-pointer items-center gap-1.5 text-sm"
+                  className="flex cursor-pointer items-center gap-1.5 text-xs"
                   title={perm.description}
                 >
                   <Checkbox
@@ -374,7 +374,7 @@ function RoleFormDialog({
             </div>
           </div>
           {submitError && (
-            <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
               {submitError}
             </p>
           )}

@@ -86,7 +86,7 @@ function LoginForm() {
                 required
               />
             </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {error && <p className="text-xs text-destructive">{error}</p>}
             <Button type="submit" disabled={submitting} className="w-full">
               {submitting ? "登录中…" : "登 录"}
             </Button>

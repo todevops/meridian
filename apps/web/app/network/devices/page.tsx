@@ -168,10 +168,10 @@ export default function NetworkDevicesPage() {
   })
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-6">
+    <div className="flex w-full flex-col gap-5 p-6">
       <header>
         <h1 className="text-xl font-semibold">网络设备</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1 text-xs text-muted-foreground">
           交换机、路由器等网络设备 CI 清单，由 SNMP 采集经发现池确认建档，点击行查看详情
         </p>
       </header>
@@ -213,7 +213,7 @@ export default function NetworkDevicesPage() {
         </div>
       ) : error ? (
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed py-12">
-          <p className="text-sm text-destructive">{error}</p>
+          <p className="text-xs text-destructive">{error}</p>
           <Button variant="outline" size="sm" onClick={() => void load()}>
             重试
           </Button>
@@ -272,7 +272,7 @@ export default function NetworkDevicesPage() {
             </Table>
           </div>
 
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>共 {table.getFilteredRowModel().rows.length} 台设备</span>
             <div className="flex items-center gap-2">
               <Button
@@ -309,13 +309,13 @@ export default function NetworkDevicesPage() {
           // Oxidized 备份元数据占位：2C 联调后展示备份状态与变更事件（备份原文不入库）
           <Card className="border-dashed">
             <CardHeader>
-              <CardTitle className="text-sm">Oxidized 配置备份</CardTitle>
+              <CardTitle className="text-xs">Oxidized 配置备份</CardTitle>
               <CardDescription>
                 备份状态、最近备份时间与配置变更事件
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 备份元数据将在迭代 2C 与 Oxidized 联调后展示（备份原文不入库）。
               </p>
             </CardContent>

@@ -177,10 +177,10 @@ export default function DbmsPage() {
   })
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-6">
+    <div className="flex w-full flex-col gap-5 p-6">
       <header>
         <h1 className="text-xl font-semibold">数据库实例</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1 text-xs text-muted-foreground">
           MySQL、Redis 等数据库与中间件实例清单，由标签枚举发现通道建档并挂接宿主机，点击行查看详情
         </p>
       </header>
@@ -198,7 +198,7 @@ export default function DbmsPage() {
         </div>
       ) : error ? (
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed py-12">
-          <p className="text-sm text-destructive">{error}</p>
+          <p className="text-xs text-destructive">{error}</p>
           <Button variant="outline" size="sm" onClick={() => void load()}>
             重试
           </Button>
@@ -211,7 +211,7 @@ export default function DbmsPage() {
               {clusterStats.map((stat) => (
                 <Card key={stat.name}>
                   <CardHeader className="pb-2">
-                    <CardTitle className="flex items-center gap-2 text-sm">
+                    <CardTitle className="flex items-center gap-2 text-xs">
                       <DatabaseIcon className="size-4 text-muted-foreground" />
                       <span className="truncate">{stat.name}</span>
                     </CardTitle>
@@ -291,7 +291,7 @@ export default function DbmsPage() {
             </Table>
           </div>
 
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>共 {table.getFilteredRowModel().rows.length} 个实例</span>
             <div className="flex items-center gap-2">
               <Button
