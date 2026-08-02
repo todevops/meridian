@@ -1,20 +1,33 @@
 "use client"
 
 // Landing 页：全局全文搜索（模型 / CI 实例 / IPAM 统一入口）。
-// 无关键字时展示功能域入口卡片；输入即搜（300ms 防抖），结果按资源类型分组。
+// 无关键字时按 F-090 六组展示功能入口卡片，并附规划模块占位卡；输入即搜（300ms 防抖），结果按资源类型分组。
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import {
   Boxes as BoxesIcon,
   Building2 as Building2Icon,
+  Cable as CableIcon,
+  ChartColumn as ChartColumnIcon,
+  Cloud as CloudIcon,
+  Container as ContainerIcon,
+  Database as DatabaseIcon,
+  KeyRound as KeyRoundIcon,
+  Layers as LayersIcon,
+  ListChecks as ListChecksIcon,
   Loader2 as Loader2Icon,
   Network as NetworkIcon,
   Radar as RadarIcon,
   Search as SearchIcon,
   Server as ServerIcon,
+  Settings as SettingsIcon,
+  Share2 as Share2Icon,
+  UsersRound as UsersRoundIcon,
+  type LucideIcon,
 } from "lucide-react"
 
+import { Badge } from "@/components/ui/badge"
 import {
   Card,
   CardContent,
@@ -31,36 +44,149 @@ import {
   type SearchItem,
 } from "@/lib/api"
 
-const SECTIONS = [
+interface SectionCard {
+  href: string
+  icon: LucideIcon
+  title: string
+  description: string
+}
+
+interface SectionGroup {
+  key: string
+  label: string
+  cards: SectionCard[]
+}
+
+const SECTION_GROUPS: SectionGroup[] = [
   {
-    href: "/models",
-    icon: BoxesIcon,
-    title: "模型管理",
-    description: "定义 CI 模型的属性、校验规则与模型间关系",
+    key: "assets",
+    label: "资产管理",
+    cards: [
+      {
+        href: "/hosts",
+        icon: ServerIcon,
+        title: "主机",
+        description: "n9e 心跳、vSphere、云 API 等来源自动调和建档的主机 CI",
+      },
+      {
+        href: "/virtualization",
+        icon: LayersIcon,
+        title: "虚拟化",
+        description: "集群 → ESXi → 虚拟机三级视图，vSphere 采集自动建档",
+      },
+      {
+        href: "/cloud",
+        icon: CloudIcon,
+        title: "云资源",
+        description: "阿里云 / 火山引擎 ECS 等云资源统一台账",
+      },
+      {
+        href: "/network/devices",
+        icon: CableIcon,
+        title: "网络设备",
+        description: "交换机、路由器等网络设备清单，SNMP 采集建档",
+      },
+      {
+        href: "/dcim",
+        icon: Building2Icon,
+        title: "机房与机柜",
+        description: "机房机柜 U 位占用视图与设备挂载管理",
+      },
+    ],
   },
   {
-    href: "/hosts",
-    icon: ServerIcon,
-    title: "主机",
-    description: "n9e 心跳、vSphere、云 API 等来源自动调和建档的主机 CI",
+    key: "network",
+    label: "网络与地址",
+    cards: [
+      {
+        href: "/ipam",
+        icon: NetworkIcon,
+        title: "IPAM 地址管理",
+        description: "子网前缀与 IP 地址的登记、分配与利用率统计",
+      },
+    ],
   },
   {
-    href: "/pool",
-    icon: RadarIcon,
-    title: "发现池",
-    description: "待人工处置的发现记录：确认入库或忽略",
+    key: "discovery",
+    label: "发现与采集",
+    cards: [
+      {
+        href: "/pool",
+        icon: RadarIcon,
+        title: "发现池",
+        description: "待人工处置的发现记录：确认入库或忽略",
+      },
+      {
+        href: "/discovery",
+        icon: ListChecksIcon,
+        title: "采集任务",
+        description: "内置与外部采集器的调度、手动运行与运行历史",
+      },
+      {
+        href: "/integrations",
+        icon: KeyRoundIcon,
+        title: "凭据管理",
+        description: "各外部系统接入凭据的托管、轮换与操作审计",
+      },
+    ],
   },
   {
-    href: "/ipam",
-    icon: NetworkIcon,
-    title: "IPAM 地址管理",
-    description: "子网前缀与 IP 地址的登记、分配与利用率统计",
+    key: "dbms",
+    label: "数据库与中间件",
+    cards: [
+      {
+        href: "/dbms",
+        icon: DatabaseIcon,
+        title: "数据库实例",
+        description: "MySQL、Redis 等实例清单与集群分组视图",
+      },
+    ],
   },
   {
-    href: "/dcim",
-    icon: Building2Icon,
-    title: "机柜",
-    description: "机房机柜 U 位占用视图与设备挂载管理",
+    key: "system",
+    label: "系统管理",
+    cards: [
+      {
+        href: "/models",
+        icon: BoxesIcon,
+        title: "模型管理",
+        description: "定义 CI 模型的属性、校验规则与模型间关系",
+      },
+      {
+        href: "/settings/users",
+        icon: UsersRoundIcon,
+        title: "用户管理",
+        description: "系统账号的新建、角色分配与启停",
+      },
+      {
+        href: "/settings/roles",
+        icon: SettingsIcon,
+        title: "角色管理",
+        description: "角色与权限点的维护",
+      },
+    ],
+  },
+]
+
+/** 规划中的模块占位卡（不可跳转，标注预计上线迭代） */
+const PLANNED_CARDS = [
+  {
+    icon: ContainerIcon,
+    title: "K8s 元数据",
+    description: "集群、命名空间与工作负载 CI 的自动建档",
+    eta: "迭代 2B 上线",
+  },
+  {
+    icon: Share2Icon,
+    title: "网络拓扑",
+    description: "基于 LLDP/CDP 与 IPAM 数据的链路拓扑可视化",
+    eta: "迭代 2B 上线",
+  },
+  {
+    icon: ChartColumnIcon,
+    title: "运营报表",
+    description: "资产分布、采集覆盖率与调和质量的多维报表",
+    eta: "迭代 2C 上线",
   },
 ] as const
 
@@ -121,8 +247,8 @@ export default function Page() {
   const totalHits = groups?.reduce((sum, g) => sum + g.items.length, 0) ?? 0
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-6">
-      <header className="flex flex-col items-center gap-4 pt-10 text-center">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
+      <header className="flex flex-col items-center gap-4 pt-8 text-center">
         <h1 className="text-2xl font-semibold">CMDB 配置管理中心</h1>
         <p className="text-sm text-muted-foreground">
           全局搜索模型、CI 实例、IPAM 地址与机房机柜
@@ -148,24 +274,56 @@ export default function Page() {
         </p>
       )}
 
-      {/* 无关键字：功能域入口 */}
+      {/* 无关键字：按六组展示功能域入口 */}
       {!query && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {SECTIONS.map((section) => (
-            <Link key={section.href} href={section.href} className="group">
-              <Card className="h-full transition-colors group-hover:border-primary/50">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <section.icon className="size-4 text-muted-foreground transition-colors group-hover:text-primary" />
-                    {section.title}
-                  </CardTitle>
-                  <CardDescription>{section.description}</CardDescription>
-                </CardHeader>
-                <CardContent />
-              </Card>
-            </Link>
+        <>
+          {SECTION_GROUPS.map((group) => (
+            <section key={group.key} className="flex flex-col gap-3">
+              <h2 className="text-sm font-medium text-muted-foreground">
+                {group.label}
+              </h2>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {group.cards.map((card) => (
+                  <Link key={card.href} href={card.href} className="group">
+                    <Card className="h-full transition-colors group-hover:border-primary/50">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <card.icon className="size-4 text-muted-foreground transition-colors group-hover:text-primary" />
+                          {card.title}
+                        </CardTitle>
+                        <CardDescription>{card.description}</CardDescription>
+                      </CardHeader>
+                      <CardContent />
+                    </Card>
+                  </Link>
+                ))}
+              </div>
+            </section>
           ))}
-        </div>
+
+          <section className="flex flex-col gap-3">
+            <h2 className="text-sm font-medium text-muted-foreground">
+              规划中
+            </h2>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {PLANNED_CARDS.map((card) => (
+                <Card key={card.title} className="h-full border-dashed opacity-75">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <card.icon className="size-4 text-muted-foreground" />
+                      {card.title}
+                      <Badge variant="secondary" className="ml-auto">
+                        {card.eta}
+                      </Badge>
+                    </CardTitle>
+                    <CardDescription>{card.description}</CardDescription>
+                  </CardHeader>
+                  <CardContent />
+                </Card>
+              ))}
+            </div>
+          </section>
+        </>
       )}
 
       {/* 搜索结果 */}

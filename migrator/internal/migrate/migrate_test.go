@@ -108,6 +108,7 @@ type fakeIP struct {
 
 type fakeCMDB struct {
 	attrs    map[string][]fakeAttrDef // 模型 code → 属性定义
+	keys     map[string][]string      // 模型 code → 调和键
 	cis      []map[string]any
 	prefixes []fakePrefix
 	ips      []fakeIP
@@ -115,7 +116,7 @@ type fakeCMDB struct {
 }
 
 func newFakeCMDB() *fakeCMDB {
-	return &fakeCMDB{attrs: map[string][]fakeAttrDef{}, nextID: 1}
+	return &fakeCMDB{attrs: map[string][]fakeAttrDef{}, keys: map[string][]string{}, nextID: 1}
 }
 
 func (f *fakeCMDB) genID(prefix string) string {
@@ -134,9 +135,10 @@ func (f *fakeCMDB) handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/models", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
-			Code       string        `json:"code"`
-			Name       string        `json:"name"`
-			Attributes []fakeAttrDef `json:"attributes"`
+			Code          string        `json:"code"`
+			Name          string        `json:"name"`
+			Attributes    []fakeAttrDef `json:"attributes"`
+			ReconcileKeys []string      `json:"reconcile_keys"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		if _, exists := f.attrs[body.Code]; exists {
@@ -144,15 +146,60 @@ func (f *fakeCMDB) handler() http.Handler {
 			return
 		}
 		f.attrs[body.Code] = body.Attributes
+		f.keys[body.Code] = body.ReconcileKeys
 		_ = json.NewEncoder(w).Encode(map[string]any{"id": f.genID("model"), "code": body.Code, "name": body.Name})
 	})
 	mux.HandleFunc("/api/v1/models/", func(w http.ResponseWriter, r *http.Request) {
 		code := strings.TrimPrefix(r.URL.Path, "/api/v1/models/")
-		if defs, ok := f.attrs[code]; ok {
-			_ = json.NewEncoder(w).Encode(map[string]any{"id": "model-" + code, "code": code, "attributes": defs})
+		defs, ok := f.attrs[code]
+		if !ok {
+			respondErr(w, http.StatusNotFound, "NOT_FOUND", "模型不存在")
 			return
 		}
-		respondErr(w, http.StatusNotFound, "NOT_FOUND", "模型不存在")
+		if r.Method == http.MethodPatch {
+			// 对齐 server PATCH 语义：整体替换调和键。
+			var body struct {
+				ReconcileKeys []string `json:"reconcile_keys"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			f.keys[code] = body.ReconcileKeys
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "model-" + code, "code": code, "attributes": defs, "reconcile_keys": f.keys[code],
+		})
+	})
+	mux.HandleFunc("/api/v1/discovery-records", func(w http.ResponseWriter, r *http.Request) {
+		// 对齐 server 摄入管道语义：逐条校验必填字段，
+		// 按 netbox_id 留痕调和（命中→update，未命中→create 入发现池）。
+		var body struct {
+			Records []cmdb.DiscoveryRecord `json:"records"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		result := cmdb.IngestResult{Errors: []cmdb.RecordError{}}
+		for i, rec := range body.Records {
+			if rec.Source == "" || rec.Collector == "" || rec.ModelCandidate == "" ||
+				rec.Attributes == nil || rec.OccurredAt.IsZero() {
+				result.Rejected++
+				result.Errors = append(result.Errors, cmdb.RecordError{Index: i, Message: "缺少必填字段"})
+				continue
+			}
+			if _, ok := f.attrs[rec.ModelCandidate]; !ok {
+				result.Rejected++
+				result.Errors = append(result.Errors, cmdb.RecordError{Index: i, Message: "候选模型不存在"})
+				continue
+			}
+			nbID, _ := rec.Attributes["netbox_id"].(string)
+			if existing := f.findCI(rec.ModelCandidate, nbID); existing != nil {
+				existing["attributes"] = rec.Attributes // update：不新增 CI
+			} else {
+				f.cis = append(f.cis, map[string]any{
+					"id": f.genID("ci"), "model_code": rec.ModelCandidate, "model_id": "model-" + rec.ModelCandidate,
+					"attributes": rec.Attributes, "status": "discovered", "source": rec.Source,
+				})
+			}
+			result.Accepted++
+		}
+		_ = json.NewEncoder(w).Encode(result)
 	})
 	mux.HandleFunc("/api/v1/cis", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {

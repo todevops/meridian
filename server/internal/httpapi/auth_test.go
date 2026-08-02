@@ -13,7 +13,6 @@ import (
 	"gorm.io/gorm/logger"
 
 	"meridian/server/internal/auth"
-	"meridian/server/internal/discovery"
 	"meridian/server/internal/store"
 )
 
@@ -36,7 +35,7 @@ func setupAuthAPI(t *testing.T) (*httptest.Server, string) {
 		t.Fatalf("种子认证数据失败: %v", err)
 	}
 	gin.SetMode(gin.TestMode)
-	srv := httptest.NewServer(NewRouter(db, discovery.NewPipeline(db), authSvc))
+	srv := httptest.NewServer(newTestRouter(t, db, authSvc))
 	t.Cleanup(srv.Close)
 	return srv, loginAs(t, srv, "admin", "admin-pass")
 }
@@ -119,10 +118,18 @@ func TestPermissionEnforcement(t *testing.T) {
 		t.Fatalf("viewer 访问用户管理期望 403，得到 %d", code)
 	}
 
-	// collector：可上报发现记录，不可查询模型。
+	// collector（D-01 收缩后）：保留 model:read 可读模型，但不可写模型，可上报发现记录。
 	collectorToken := loginAs(t, srv, "collector", "collector-pass")
-	if code, _ := doJSON(t, http.MethodGet, srv.URL+"/api/v1/models", nil, collectorToken); code != http.StatusForbidden {
-		t.Fatalf("collector 查询模型期望 403，得到 %d", code)
+	if code, _ := doJSON(t, http.MethodGet, srv.URL+"/api/v1/models", nil, collectorToken); code != http.StatusOK {
+		t.Fatalf("collector 查询模型期望 200，得到 %d", code)
+	}
+	code, body = doJSON(t, http.MethodPost, srv.URL+"/api/v1/models",
+		map[string]any{"name": "x", "code": "x"}, collectorToken)
+	if code != http.StatusForbidden {
+		t.Fatalf("collector 创建模型期望 403，得到 %d: %v", code, body)
+	}
+	if body["code"] != "FORBIDDEN" {
+		t.Fatalf("错误码应为 FORBIDDEN: %v", body)
 	}
 }
 

@@ -1,0 +1,11 @@
+{
+  "code": "k8s_namespace",
+  "name": "K8s 命名空间",
+  "attributes": [
+    { "code": "cluster", "name": "集群", "type": "string", "required": true, "source": "apiserver" },
+    { "code": "name", "name": "名称", "type": "string", "required": true, "source": "apiserver" }
+  ],
+  "relations": [
+    { "code": "mounted_to", "name": "挂载到应用", "target_model": "biz_app", "cardinality": "one_to_one", "direction": "outgoing" }
+  ]
+}

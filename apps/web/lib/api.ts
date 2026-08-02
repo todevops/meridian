@@ -825,3 +825,264 @@ export function globalSearch(
 ): Promise<SearchResponse> {
   return request<SearchResponse>("/v1/search", { query: { q, limit } })
 }
+
+// ---------- 凭据管理（明文 secret 永不回读，仅可轮换） ----------
+
+/** 凭据类型（契约九枚举） */
+export type CredentialType =
+  | "vcenter"
+  | "aliyun"
+  | "volc"
+  | "snmp"
+  | "db"
+  | "kubeconfig"
+  | "ssh_ipmi"
+  | "n9e"
+  | "netbox"
+
+/** 凭据（不含 secret 明文） */
+export interface Credential {
+  id: string
+  name: string
+  type: CredentialType
+  description?: string
+  /** 最近一次轮换时间 */
+  last_rotated_at?: string
+  /** 被任务引用/使用次数 */
+  use_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface CredentialCreateRequest {
+  name: string
+  type: CredentialType
+  description?: string
+  /** 密文键值对，字段随类型而变 */
+  secret: Record<string, unknown>
+}
+
+/** 全字段可选；secret 不在此更新，走轮换接口 */
+export interface CredentialPatchRequest {
+  name?: string
+  description?: string
+}
+
+export interface ListCredentialsParams {
+  type?: CredentialType
+  page?: number
+  page_size?: number
+}
+
+export function listCredentials(
+  params: ListCredentialsParams = {}
+): Promise<Paged<Credential>> {
+  return request<Paged<Credential>>("/v1/credentials", {
+    query: { ...params },
+  })
+}
+
+export function createCredential(
+  body: CredentialCreateRequest
+): Promise<Credential> {
+  return request<Credential>("/v1/credentials", { method: "POST", body })
+}
+
+export function patchCredential(
+  credentialId: string,
+  body: CredentialPatchRequest
+): Promise<Credential> {
+  return request<Credential>(
+    `/v1/credentials/${encodeURIComponent(credentialId)}`,
+    { method: "PATCH", body }
+  )
+}
+
+/** 轮换：重新录入完整 secret */
+export function rotateCredential(
+  credentialId: string,
+  secret: Record<string, unknown>
+): Promise<Credential> {
+  return request<Credential>(
+    `/v1/credentials/${encodeURIComponent(credentialId)}/rotate`,
+    { method: "POST", body: { secret } }
+  )
+}
+
+/** 凭据操作审计条目 */
+export interface CredentialAudit {
+  id: string
+  /** 动作（create/rotate/use 等） */
+  action: string
+  /** 操作者（用户名或采集器标识） */
+  operator: string
+  /** 来源（web/console/collector 等） */
+  source: string
+  created_at: string
+}
+
+export interface ListCredentialAuditsParams {
+  page?: number
+  page_size?: number
+}
+
+export function listCredentialAudits(
+  credentialId: string,
+  params: ListCredentialAuditsParams = {}
+): Promise<Paged<CredentialAudit>> {
+  return request<Paged<CredentialAudit>>(
+    `/v1/credentials/${encodeURIComponent(credentialId)}/audits`,
+    { query: { ...params } }
+  )
+}
+
+// ---------- 采集任务 ----------
+
+/** 任务状态 */
+export type DiscoveryTaskStatus = "idle" | "running" | "error"
+
+/** 采集任务 */
+export interface DiscoveryTask {
+  id: string
+  name: string
+  /** 采集器类型：builtin:<name> 或 exec:<binary> */
+  collector_type: string
+  /** 关联凭据 id（可选） */
+  credential_id?: string | null
+  /** 调度间隔（秒） */
+  interval_seconds: number
+  enabled: boolean
+  /** 采集器特定配置（exec 模式含 binary/args/timeout 等） */
+  config: Record<string, unknown>
+  status: DiscoveryTaskStatus
+  last_run_at?: string | null
+  last_success_at?: string | null
+  last_error?: string | null
+  run_count: number
+  fail_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface DiscoveryTaskCreateRequest {
+  name: string
+  collector_type: string
+  credential_id?: string
+  interval_seconds: number
+  enabled?: boolean
+  config?: Record<string, unknown>
+}
+
+/** 全字段可选，仅更新传入字段 */
+export interface DiscoveryTaskPatchRequest {
+  name?: string
+  credential_id?: string
+  interval_seconds?: number
+  enabled?: boolean
+  config?: Record<string, unknown>
+}
+
+/** 任务运行记录 */
+export interface DiscoveryTaskRun {
+  id: string
+  task_id: string
+  started_at: string
+  finished_at?: string | null
+  success: boolean
+  /** 本次产出发现记录条数 */
+  produced: number
+  error_summary?: string | null
+}
+
+export interface ListDiscoveryTasksParams {
+  page?: number
+  page_size?: number
+}
+
+export function listDiscoveryTasks(
+  params: ListDiscoveryTasksParams = {}
+): Promise<Paged<DiscoveryTask>> {
+  return request<Paged<DiscoveryTask>>("/v1/discovery/tasks", {
+    query: { ...params },
+  })
+}
+
+export function createDiscoveryTask(
+  body: DiscoveryTaskCreateRequest
+): Promise<DiscoveryTask> {
+  return request<DiscoveryTask>("/v1/discovery/tasks", {
+    method: "POST",
+    body,
+  })
+}
+
+export function patchDiscoveryTask(
+  taskId: string,
+  body: DiscoveryTaskPatchRequest
+): Promise<DiscoveryTask> {
+  return request<DiscoveryTask>(
+    `/v1/discovery/tasks/${encodeURIComponent(taskId)}`,
+    { method: "PATCH", body }
+  )
+}
+
+/** 手动运行响应：契约未固定形状，原样透传给调用方提取提示文案 */
+export type RunDiscoveryTaskResponse = Record<string, unknown>
+
+export function runDiscoveryTask(
+  taskId: string
+): Promise<RunDiscoveryTaskResponse> {
+  return request<RunDiscoveryTaskResponse>(
+    `/v1/discovery/tasks/${encodeURIComponent(taskId)}/run`,
+    { method: "POST" }
+  )
+}
+
+export interface ListDiscoveryTaskRunsParams {
+  page?: number
+  page_size?: number
+}
+
+export function listDiscoveryTaskRuns(
+  taskId: string,
+  params: ListDiscoveryTaskRunsParams = {}
+): Promise<Paged<DiscoveryTaskRun>> {
+  return request<Paged<DiscoveryTaskRun>>(
+    `/v1/discovery/tasks/${encodeURIComponent(taskId)}/runs`,
+    { query: { ...params } }
+  )
+}
+
+// ---------- 告警事件（黑设备/系统事件，AC-F043-01） ----------
+
+export interface AlertEvent {
+  id: string
+  level: string
+  title: string
+  source: string
+  ci_id?: string
+  detail?: string
+  acknowledged: boolean
+  created_at: string
+}
+
+export interface ListAlertsParams {
+  acknowledged?: boolean
+  page?: number
+  page_size?: number
+}
+
+export function listAlerts(params: ListAlertsParams = {}): Promise<Paged<AlertEvent>> {
+  const query: Record<string, string | number | undefined> = {
+    page: params.page,
+    page_size: params.page_size,
+  }
+  if (params.acknowledged !== undefined) query.acknowledged = String(params.acknowledged)
+  return request<Paged<AlertEvent>>(`/v1/alerts`, { query })
+}
+
+export function ackAlert(alertId: string): Promise<AlertEvent> {
+  return request<AlertEvent>(`/v1/alerts/${encodeURIComponent(alertId)}/ack`, {
+    method: "POST",
+  })
+}

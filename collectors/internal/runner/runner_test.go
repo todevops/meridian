@@ -51,14 +51,18 @@ func TestRunSuccess(t *testing.T) {
 		fakeCollector{name: "b", recs: nil}, // 空批次不上报
 	}
 	logs := []string{}
+	var out strings.Builder
 	err := Run(context.Background(), cols, sink, func(f string, args ...any) {
 		logs = append(logs, f)
-	})
+	}, &out)
 	if err != nil {
 		t.Fatalf("Run 应成功: %v", err)
 	}
 	if len(sink.batches) != 1 {
 		t.Fatalf("应只上报 1 批（空批次跳过）: %d", len(sink.batches))
+	}
+	if out.String() != "CMDB_PRODUCED=1\n" {
+		t.Fatalf("应打印 CMDB_PRODUCED=1: %q", out.String())
 	}
 }
 
@@ -68,7 +72,8 @@ func TestRunCollectErrorDoesNotBlockOthers(t *testing.T) {
 		fakeCollector{name: "bad", err: errors.New("数据源不可用")},
 		fakeCollector{name: "good", recs: []record.Record{sampleRecord()}},
 	}
-	err := Run(context.Background(), cols, sink, func(string, ...any) {})
+	var out strings.Builder
+	err := Run(context.Background(), cols, sink, func(string, ...any) {}, &out)
 	if err == nil {
 		t.Fatal("存在失败采集器应返回聚合错误")
 	}
@@ -78,13 +83,21 @@ func TestRunCollectErrorDoesNotBlockOthers(t *testing.T) {
 	if len(sink.batches) != 1 {
 		t.Fatal("失败采集器不应阻断后续采集器上报")
 	}
+	// 失败采集器不计入产出，但产出声明照常打印（末行约定）
+	if out.String() != "CMDB_PRODUCED=1\n" {
+		t.Fatalf("应打印 CMDB_PRODUCED=1: %q", out.String())
+	}
 }
 
 func TestRunSinkError(t *testing.T) {
 	sink := &fakeSink{err: errors.New("CMDB 不可达")}
 	cols := []Collector{fakeCollector{name: "a", recs: []record.Record{sampleRecord()}}}
-	err := Run(context.Background(), cols, sink, func(string, ...any) {})
+	var out strings.Builder
+	err := Run(context.Background(), cols, sink, func(string, ...any) {}, &out)
 	if err == nil || !strings.Contains(err.Error(), "CMDB 不可达") {
 		t.Fatalf("上报失败应聚合返回: %v", err)
+	}
+	if out.String() != "CMDB_PRODUCED=0\n" {
+		t.Fatalf("上报失败应声明产出 0: %q", out.String())
 	}
 }

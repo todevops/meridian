@@ -10,9 +10,11 @@ import (
 	"gorm.io/gorm"
 
 	"meridian/server/internal/auth"
+	"meridian/server/internal/credentials"
 	"meridian/server/internal/dcim"
 	"meridian/server/internal/discovery"
 	"meridian/server/internal/ipam"
+	"meridian/server/internal/scheduler"
 )
 
 // 错误码（机器可读）。
@@ -26,23 +28,27 @@ const (
 
 // Server 聚合 HTTP 层依赖。
 type Server struct {
-	db       *gorm.DB
-	pipeline *discovery.Pipeline
-	auth     *auth.Service
-	ipam     *ipam.Service
-	dcim     *dcim.Service
+	db         *gorm.DB
+	pipeline   *discovery.Pipeline
+	auth       *auth.Service
+	ipam       *ipam.Service
+	dcim       *dcim.Service
+	credCipher *credentials.Cipher
+	scheduler  *scheduler.Scheduler
 }
 
 // NewRouter 构建完整路由（健康检查 + /api/v1 业务接口）。
 // 除 /healthz、/readyz 与 /api/v1/auth/login 外，所有接口需认证；
 // 业务接口按权限点鉴权（权限点目录见 auth 包 catalog）。
-func NewRouter(db *gorm.DB, pipeline *discovery.Pipeline, authSvc *auth.Service) *gin.Engine {
+func NewRouter(db *gorm.DB, pipeline *discovery.Pipeline, authSvc *auth.Service, credCipher *credentials.Cipher, sched *scheduler.Scheduler) *gin.Engine {
 	s := &Server{
-		db:       db,
-		pipeline: pipeline,
-		auth:     authSvc,
-		ipam:     ipam.NewService(db),
-		dcim:     dcim.NewService(db),
+		db:         db,
+		pipeline:   pipeline,
+		auth:       authSvc,
+		ipam:       ipam.NewService(db),
+		dcim:       dcim.NewService(db),
+		credCipher: credCipher,
+		scheduler:  sched,
 	}
 
 	r := gin.Default()
@@ -93,6 +99,20 @@ func NewRouter(db *gorm.DB, pipeline *discovery.Pipeline, authSvc *auth.Service)
 		authed.POST("/discovery-pool/:id/confirm", s.require("discovery:write"), s.confirmPoolItem)
 		authed.POST("/discovery-pool/:id/ignore", s.require("discovery:write"), s.ignorePoolItem)
 
+		// 凭据纳管（F-005）：secret 永不回明文。
+		authed.GET("/credentials", s.require("credential:read"), s.listCredentials)
+		authed.POST("/credentials", s.require("credential:write"), s.createCredential)
+		authed.PATCH("/credentials/:credential_id", s.require("credential:write"), s.patchCredential)
+		authed.POST("/credentials/:credential_id/rotate", s.require("credential:write"), s.rotateCredential)
+		authed.GET("/credentials/:credential_id/audits", s.require("credential:read"), s.listCredentialAudits)
+
+		// 采集任务（F-033）：CRUD + 手动触发 + 执行记录。
+		authed.GET("/discovery/tasks", s.require("task:read"), s.listTasks)
+		authed.POST("/discovery/tasks", s.require("task:write"), s.createTask)
+		authed.PATCH("/discovery/tasks/:task_id", s.require("task:write"), s.patchTask)
+		authed.POST("/discovery/tasks/:task_id/run", s.require("task:write"), s.runTask)
+		authed.GET("/discovery/tasks/:task_id/runs", s.require("task:read"), s.listTaskRuns)
+
 		authed.GET("/ipam/prefixes", s.require("ipam:read"), s.listPrefixes)
 		authed.POST("/ipam/prefixes", s.require("ipam:write"), s.createPrefix)
 		authed.GET("/ipam/prefixes/:prefix_id", s.require("ipam:read"), s.getPrefix)
@@ -107,6 +127,10 @@ func NewRouter(db *gorm.DB, pipeline *discovery.Pipeline, authSvc *auth.Service)
 		authed.POST("/dcim/racks/:ci_id/unmount", s.require("dcim:write"), s.unmountRackUnit)
 
 		authed.GET("/integrations/oxidized/devices", s.require("ci:read"), s.listOxidizedDevices)
+
+		// 告警事件（2B）：黑设备等风险线索的查询与确认。
+		authed.GET("/alerts", s.require("alert:read"), s.listAlerts)
+		authed.POST("/alerts/:alert_id/ack", s.require("alert:write"), s.ackAlert)
 
 		authed.GET("/users", s.require("user:manage"), s.listUsers)
 		authed.POST("/users", s.require("user:manage"), s.createUser)

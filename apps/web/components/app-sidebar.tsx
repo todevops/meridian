@@ -1,51 +1,53 @@
 "use client"
 
-// 全局左侧导航：各功能域入口，当前路由高亮；底部为当前用户与退出登录。
-// 登录页不渲染侧边栏；系统管理入口按权限点控制可见性。
+// 全局左侧导航（F-090 六组结构）：总览 + 五个折叠组，当前路由高亮；
+// 组折叠状态记忆于 localStorage；发现池入口轮询待处理数徽标（60s）；
+// 菜单项按 GET /auth/me 权限点过滤；底部为当前用户与退出登录。
+// 登录页不渲染侧边栏。
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
-  Boxes as BoxesIcon,
-  Building2 as Building2Icon,
-  LayoutDashboard as LayoutDashboardIcon,
+  ChevronRight as ChevronRightIcon,
   LogOut as LogOutIcon,
-  Network as NetworkIcon,
-  Radar as RadarIcon,
-  Server as ServerIcon,
-  Settings as SettingsIcon,
   UserRound as UserRoundIcon,
-  UsersRound as UsersRoundIcon,
 } from "lucide-react"
 
 import { cn } from "@workspace/ui/lib/utils"
-import { getCurrentUser, logout, type CurrentUser } from "@/lib/api"
+import {
+  getCurrentUser,
+  listAlerts,
+  listDiscoveryPool,
+  logout,
+  type CurrentUser,
+} from "@/lib/api"
+import {
+  isNavItemActive,
+  visibleNavGroups,
+  OVERVIEW_ITEM,
+  type NavItemDef,
+} from "@/lib/nav"
 
-const NAV_ITEMS = [
-  { href: "/", label: "总览", icon: LayoutDashboardIcon, exact: true },
-  { href: "/models", label: "模型管理", icon: BoxesIcon, exact: false },
-  { href: "/hosts", label: "主机", icon: ServerIcon, exact: false },
-  { href: "/pool", label: "发现池", icon: RadarIcon, exact: false },
-  { href: "/ipam", label: "IPAM", icon: NetworkIcon, exact: false },
-  { href: "/dcim", label: "机柜", icon: Building2Icon, exact: false },
-] as const
+/** 组折叠状态的 localStorage 键，值为折叠组 key 数组 */
+const COLLAPSED_STORAGE_KEY = "cmdb.nav.collapsed"
 
-// 系统管理菜单：permission 为所需权限点，无权限不展示
-const ADMIN_ITEMS = [
-  {
-    href: "/settings/users",
-    label: "用户管理",
-    icon: UsersRoundIcon,
-    permission: "user:manage",
-  },
-  {
-    href: "/settings/roles",
-    label: "角色管理",
-    icon: SettingsIcon,
-    permission: "role:manage",
-  },
-] as const
+/** 发现池待处理数轮询间隔（毫秒） */
+const POOL_BADGE_INTERVAL = 60_000
+
+function readCollapsedKeys(): string[] {
+  if (typeof window === "undefined") return []
+  try {
+    const raw = window.localStorage.getItem(COLLAPSED_STORAGE_KEY)
+    if (!raw) return []
+    const parsed: unknown = JSON.parse(raw)
+    return Array.isArray(parsed)
+      ? parsed.filter((k): k is string => typeof k === "string")
+      : []
+  } catch {
+    return []
+  }
+}
 
 function navLinkClass(active: boolean) {
   return cn(
@@ -60,6 +62,9 @@ export function AppSidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const [user, setUser] = useState<CurrentUser | null>(null)
+  const [collapsed, setCollapsed] = useState<string[]>([])
+  const [poolPending, setPoolPending] = useState<number | null>(null)
+  const [alertsUnacked, setAlertsUnacked] = useState<number | null>(null)
 
   useEffect(() => {
     if (pathname === "/login") return
@@ -69,17 +74,72 @@ export function AppSidebar() {
       .catch(() => {})
   }, [pathname])
 
+  // 挂载后读取折叠状态（避免 SSR 水合不一致）
+  useEffect(() => {
+    setCollapsed(readCollapsedKeys())
+  }, [])
+
+  const toggleGroup = useCallback((key: string) => {
+    setCollapsed((prev) => {
+      const next = prev.includes(key)
+        ? prev.filter((k) => k !== key)
+        : [...prev, key]
+      try {
+        window.localStorage.setItem(COLLAPSED_STORAGE_KEY, JSON.stringify(next))
+      } catch {
+        // 存储不可用时仅影响记忆，不阻断交互
+      }
+      return next
+    })
+  }, [])
+
+  // 发现池待处理数与未确认告警数徽标：登录后 60s 轮询
+  useEffect(() => {
+    if (pathname === "/login" || !user) return
+    let cancelled = false
+    const poll = () => {
+      listDiscoveryPool({ status: "pending", page: 1, page_size: 1 })
+        .then((res) => {
+          if (!cancelled) setPoolPending(res.total)
+        })
+        .catch(() => {
+          if (!cancelled) setPoolPending(null)
+        })
+      listAlerts({ acknowledged: false, page: 1, page_size: 1 })
+        .then((res) => {
+          if (!cancelled) setAlertsUnacked(res.total)
+        })
+        .catch(() => {
+          if (!cancelled) setAlertsUnacked(null)
+        })
+    }
+    poll()
+    const timer = window.setInterval(poll, POOL_BADGE_INTERVAL)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [pathname, user])
+
   // 登录页不渲染侧边栏
   if (pathname === "/login") return null
 
-  const isActive = (href: string, exact?: boolean) =>
-    exact
-      ? pathname === href
-      : pathname === href || pathname.startsWith(`${href}/`)
+  const groups = visibleNavGroups(user?.permissions)
 
-  const adminItems = ADMIN_ITEMS.filter((item) =>
-    user?.permissions.includes(item.permission)
-  )
+  const renderBadge = (item: NavItemDef) => {
+    const count =
+      item.badge === "pool-pending"
+        ? poolPending
+        : item.badge === "alerts-unacked"
+          ? alertsUnacked
+          : null
+    if (count === null || count <= 0) return null
+    return (
+      <span className="ml-auto rounded-full bg-amber-500/15 px-1.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+        {count > 99 ? "99+" : count}
+      </span>
+    )
+  }
 
   async function onLogout() {
     try {
@@ -91,42 +151,73 @@ export function AppSidebar() {
   }
 
   return (
-    <aside className="sticky top-0 flex h-svh w-52 shrink-0 flex-col border-r bg-sidebar">
+    <aside className="sticky top-0 flex h-svh w-56 shrink-0 flex-col border-r bg-sidebar">
       <div className="flex h-14 items-center border-b px-4">
         <Link href="/" className="text-sm font-semibold tracking-tight">
           CMDB 配置管理中心
         </Link>
       </div>
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
-        {NAV_ITEMS.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            aria-current={isActive(item.href, item.exact) ? "page" : undefined}
-            className={navLinkClass(isActive(item.href, item.exact))}
-          >
-            <item.icon className="size-4 shrink-0" />
-            {item.label}
-          </Link>
-        ))}
-        {adminItems.length > 0 && (
-          <>
-            <div className="mt-3 mb-1 px-3 text-xs font-medium text-muted-foreground/70">
-              系统管理
-            </div>
-            {adminItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={isActive(item.href) ? "page" : undefined}
-                className={navLinkClass(isActive(item.href))}
+        <Link
+          href={OVERVIEW_ITEM.href}
+          aria-current={
+            isNavItemActive(pathname, OVERVIEW_ITEM) ? "page" : undefined
+          }
+          className={navLinkClass(isNavItemActive(pathname, OVERVIEW_ITEM))}
+        >
+          <OVERVIEW_ITEM.icon className="size-4 shrink-0" />
+          {OVERVIEW_ITEM.label}
+        </Link>
+        {groups.map((group) => {
+          const isCollapsed = collapsed.includes(group.key)
+          const groupActive = group.items.some((item) =>
+            isNavItemActive(pathname, item)
+          )
+          return (
+            <div key={group.key} className="flex flex-col gap-1">
+              <button
+                type="button"
+                onClick={() => toggleGroup(group.key)}
+                aria-expanded={!isCollapsed}
+                className={cn(
+                  "mt-2 flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors hover:text-foreground",
+                  groupActive ? "text-foreground" : "text-muted-foreground/70"
+                )}
               >
-                <item.icon className="size-4 shrink-0" />
-                {item.label}
-              </Link>
-            ))}
-          </>
-        )}
+                <ChevronRightIcon
+                  className={cn(
+                    "size-3.5 transition-transform",
+                    !isCollapsed && "rotate-90"
+                  )}
+                />
+                {group.label}
+              </button>
+              {!isCollapsed &&
+                group.items.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    aria-current={
+                      isNavItemActive(pathname, item) ? "page" : undefined
+                    }
+                    className={cn(
+                      navLinkClass(isNavItemActive(pathname, item)),
+                      "pl-4"
+                    )}
+                  >
+                    <item.icon className="size-4 shrink-0" />
+                    <span className="truncate">{item.label}</span>
+                    {item.planned && (
+                      <span className="ml-auto text-xs text-muted-foreground/60">
+                        规划中
+                      </span>
+                    )}
+                    {renderBadge(item)}
+                  </Link>
+                ))}
+            </div>
+          )
+        })}
       </nav>
       {user && (
         <div className="flex items-center gap-2 border-t p-3">

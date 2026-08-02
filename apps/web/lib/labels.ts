@@ -3,6 +3,8 @@
 import type {
   AttributeType,
   CIStatus,
+  CredentialType,
+  DiscoveryTaskStatus,
   PoolStatus,
   ReconcileAction,
   RelationCardinality,
@@ -73,4 +75,58 @@ export const IP_STATUS_LABELS: Record<string, string> = {
 
 export function ipStatusLabel(status: string): string {
   return IP_STATUS_LABELS[status] ?? status
+}
+
+export const CREDENTIAL_TYPES: CredentialType[] = [
+  "vcenter",
+  "aliyun",
+  "volc",
+  "snmp",
+  "db",
+  "kubeconfig",
+  "ssh_ipmi",
+  "n9e",
+  "netbox",
+]
+
+export const CREDENTIAL_TYPE_LABELS: Record<CredentialType, string> = {
+  vcenter: "vCenter",
+  aliyun: "阿里云",
+  volc: "火山引擎",
+  snmp: "SNMP",
+  db: "数据库",
+  kubeconfig: "Kubeconfig",
+  ssh_ipmi: "SSH / IPMI",
+  n9e: "夜莺 n9e",
+  netbox: "NetBox",
+}
+
+export const TASK_STATUS_LABELS: Record<DiscoveryTaskStatus, string> = {
+  idle: "空闲",
+  running: "运行中",
+  error: "异常",
+}
+
+/** 凭据审计动作的中文文案；契约外的动作兜底展示原文 */
+export const AUDIT_ACTION_LABELS: Record<string, string> = {
+  create: "新建",
+  update: "编辑",
+  rotate: "轮换",
+  use: "取用",
+  delete: "删除",
+}
+
+export function auditActionLabel(action: string): string {
+  return AUDIT_ACTION_LABELS[action] ?? action
+}
+
+/** 采集器类型展示：builtin:xxx 取短名，exec:binary 保留原样 */
+export function collectorTypeLabel(collectorType: string): string {
+  if (collectorType.startsWith("builtin:")) {
+    return `内置 ${collectorType.slice("builtin:".length)}`
+  }
+  if (collectorType.startsWith("exec:")) {
+    return `外部 ${collectorType.slice("exec:".length)}`
+  }
+  return collectorType
 }

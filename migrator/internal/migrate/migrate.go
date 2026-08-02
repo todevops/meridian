@@ -76,13 +76,67 @@ func (t *prefixTracker) findParent(p netip.Prefix) (string, bool) {
 	return t.items[best].id, true
 }
 
-// Run 执行完整迁移流程。模型确保失败视为致命错误（无法继续）；
-// 单类实体拉取失败与单条记录写入失败记入报告后继续后续实体。
+// 迁移模式：direct 直连 CI/IPAM 接口（默认，完全兼容既有行为）；
+// pipeline 将五类实体翻译为标准发现记录经摄入管道上报（IPAM 仍走 direct）。
+const (
+	ModeDirect   = "direct"
+	ModePipeline = "pipeline"
+)
+
+// Options 为迁移运行参数；批量/限速/重试参数仅 pipeline 模式生效。
+type Options struct {
+	Mode      string  // direct（默认）/ pipeline
+	BatchSize int     // 每批上报记录数（默认 300，范围 200-500）
+	Rate      float64 // 上报限速（条/秒，默认 50）
+	MaxRetry  int     // 429/5xx 指数退避最大重试次数（默认 5）
+}
+
+// 参数默认值与合法范围。
+const (
+	DefaultBatchSize = 300
+	MinBatchSize     = 200
+	MaxBatchSize     = 500
+	DefaultRate      = 50.0
+	DefaultMaxRetry  = 5
+)
+
+// Normalize 补齐默认值并收敛非法取值。
+func (o Options) Normalize() Options {
+	if o.Mode == "" {
+		o.Mode = ModeDirect
+	}
+	if o.BatchSize <= 0 {
+		o.BatchSize = DefaultBatchSize
+	}
+	if o.BatchSize < MinBatchSize {
+		o.BatchSize = MinBatchSize
+	}
+	if o.BatchSize > MaxBatchSize {
+		o.BatchSize = MaxBatchSize
+	}
+	if o.Rate <= 0 {
+		o.Rate = DefaultRate
+	}
+	if o.MaxRetry < 0 {
+		o.MaxRetry = 0
+	}
+	return o
+}
+
+// Run 以默认 direct 模式执行完整迁移流程（保持既有调用方兼容）。
 func (m *Migrator) Run(ctx context.Context, netboxURL, cmdbURL string) (*Report, error) {
+	return m.RunWithOptions(ctx, netboxURL, cmdbURL, Options{Mode: ModeDirect})
+}
+
+// RunWithOptions 执行完整迁移流程。模型确保失败视为致命错误（无法继续）；
+// 单类实体拉取失败与单条记录写入失败记入报告后继续后续实体。
+func (m *Migrator) RunWithOptions(ctx context.Context, netboxURL, cmdbURL string, opts Options) (*Report, error) {
+	opts = opts.Normalize()
 	report := &Report{
 		StartedAt:    time.Now(),
 		NetboxAPIURL: netboxURL,
 		CMDBAPIURL:   cmdbURL,
+		Mode:         opts.Mode,
 	}
 
 	// 第 1 步：确保迁移依赖的模型存在（GET 按 code 查无则 POST 创建）。
@@ -100,11 +154,25 @@ func (m *Migrator) Run(ctx context.Context, netboxURL, cmdbURL string) (*Report,
 	}
 
 	// 第 2 步：按依赖顺序迁移实体。
-	m.migrateSites(ctx, report)
-	m.migrateRacks(ctx, report)
-	m.migrateDevices(ctx, report)
-	m.migrateVLANs(ctx, report)
-	m.migrateVMs(ctx, report)
+	if opts.Mode == ModePipeline {
+		// 管道模式：确保 netbox_id 为各模型首调和键（重复执行按留痕命中存量 CI，保证幂等）。
+		// 调和键确保失败视为致命错误（否则会造成重复建档）。
+		for _, def := range cmdb.RequiredModels() {
+			if _, err := m.cmdb.EnsureReconcileKey(ctx, def.Code, "netbox_id"); err != nil {
+				m.finish(report)
+				return report, fmt.Errorf("确保模型 %q 调和键失败: %w", def.Code, err)
+			}
+		}
+		m.runPipeline(ctx, report, opts)
+	} else {
+		m.migrateSites(ctx, report)
+		m.migrateRacks(ctx, report)
+		m.migrateDevices(ctx, report)
+		m.migrateVLANs(ctx, report)
+		m.migrateVMs(ctx, report)
+	}
+	// IPAM 无模型管道（调和引擎面向 CI 模型，前缀/IP 无对应 model_candidate），
+	// prefixes/ip-addresses 在两种模式下均走 direct。
 	tracker := m.migratePrefixes(ctx, report)
 	m.migrateIPs(ctx, report, tracker)
 
@@ -128,20 +196,9 @@ func (m *Migrator) migrateSites(ctx context.Context, report *Report) {
 	}
 	ent.Fetched = len(sites)
 	for _, s := range sites {
-		code := s.Slug
-		if code == "" {
-			code = fmt.Sprintf("site-%d", s.ID) // slug 缺失时兜底，保证必填 code 有值
-		}
-		attrs := map[string]any{
-			"name":      s.Name,
-			"code":      code,
-			"netbox_id": strconv.Itoa(s.ID),
-		}
-		if s.PhysicalAddress != "" {
-			attrs["address"] = s.PhysicalAddress
-		}
+		label, attrs := siteAttrs(s)
 		if _, err := m.cmdb.CreateCI(ctx, "room", attrs); err != nil {
-			ent.recordFailure(strconv.Itoa(s.ID), s.Name, err)
+			ent.recordFailure(strconv.Itoa(s.ID), label, err)
 			continue
 		}
 		ent.recordSuccess()
@@ -158,22 +215,9 @@ func (m *Migrator) migrateRacks(ctx context.Context, report *Report) {
 	}
 	ent.Fetched = len(racks)
 	for _, r := range racks {
-		name := r.Name
-		if name == "" {
-			name = fmt.Sprintf("rack-%d", r.ID)
-		}
-		attrs := map[string]any{
-			"name":      name,
-			"netbox_id": strconv.Itoa(r.ID),
-		}
-		if r.UHeight > 0 {
-			attrs["u_capacity"] = r.UHeight
-		}
-		if r.Site != nil {
-			attrs["netbox_site_id"] = strconv.Itoa(r.Site.ID)
-		}
+		label, attrs := rackAttrs(r)
 		if _, err := m.cmdb.CreateCI(ctx, "rack", attrs); err != nil {
-			ent.recordFailure(strconv.Itoa(r.ID), name, err)
+			ent.recordFailure(strconv.Itoa(r.ID), label, err)
 			continue
 		}
 		ent.recordSuccess()
@@ -190,36 +234,9 @@ func (m *Migrator) migrateDevices(ctx context.Context, report *Report) {
 	}
 	ent.Fetched = len(devices)
 	for _, d := range devices {
-		name := d.Name
-		if name == "" {
-			name = fmt.Sprintf("device-%d", d.ID)
-		}
-		attrs := map[string]any{
-			"name":      name,
-			"netbox_id": strconv.Itoa(d.ID),
-		}
-		if d.Serial != "" {
-			attrs["serial_no"] = d.Serial
-		}
-		if d.DeviceType != nil {
-			if d.DeviceType.Model != "" {
-				attrs["model"] = d.DeviceType.Model
-			}
-			if d.DeviceType.Manufacturer != nil && d.DeviceType.Manufacturer.Name != "" {
-				attrs["vendor"] = d.DeviceType.Manufacturer.Name
-			}
-		}
-		// primary_ip4 可能缺失（NetBox 允许）；掩码部分剥离后作为管理 IP。
-		if d.PrimaryIP4 != nil && d.PrimaryIP4.Address != "" {
-			if p, err := netip.ParsePrefix(d.PrimaryIP4.Address); err == nil {
-				attrs["mgmt_ip"] = p.Addr().String()
-			}
-		}
-		if d.Rack != nil {
-			attrs["netbox_rack_id"] = strconv.Itoa(d.Rack.ID)
-		}
+		label, attrs := deviceAttrs(d)
 		if _, err := m.cmdb.CreateCI(ctx, "network_device", attrs); err != nil {
-			ent.recordFailure(strconv.Itoa(d.ID), name, err)
+			ent.recordFailure(strconv.Itoa(d.ID), label, err)
 			continue
 		}
 		ent.recordSuccess()
@@ -236,20 +253,9 @@ func (m *Migrator) migrateVLANs(ctx context.Context, report *Report) {
 	}
 	ent.Fetched = len(vlans)
 	for _, v := range vlans {
-		name := v.Name
-		if name == "" {
-			name = fmt.Sprintf("vlan-%d", v.VID)
-		}
-		attrs := map[string]any{
-			"vid":       float64(v.VID),
-			"name":      name,
-			"netbox_id": strconv.Itoa(v.ID),
-		}
-		if v.Description != "" {
-			attrs["description"] = v.Description
-		}
+		label, attrs := vlanAttrs(v)
 		if _, err := m.cmdb.CreateCI(ctx, "vlan", attrs); err != nil {
-			ent.recordFailure(strconv.Itoa(v.ID), name, err)
+			ent.recordFailure(strconv.Itoa(v.ID), label, err)
 			continue
 		}
 		ent.recordSuccess()
@@ -268,24 +274,9 @@ func (m *Migrator) migrateVMs(ctx context.Context, report *Report) {
 	}
 	ent.Fetched = len(vms)
 	for _, v := range vms {
-		name := v.Name
-		if name == "" {
-			name = fmt.Sprintf("vm-%d", v.ID)
-		}
-		attrs := map[string]any{
-			"instance_uuid": fmt.Sprintf("netbox-vm-%d", v.ID),
-			"name":          name,
-			"power_state":   mapVMPowerState(v.Status.Value),
-			"netbox_id":     strconv.Itoa(v.ID),
-		}
-		if v.VCPUs > 0 {
-			attrs["vcpu"] = v.VCPUs
-		}
-		if v.Memory > 0 {
-			attrs["memory_gb"] = math.Round(v.Memory/1024*100) / 100
-		}
+		label, attrs := vmAttrs(v)
 		if _, err := m.cmdb.CreateCI(ctx, "virtual_machine", attrs); err != nil {
-			ent.recordFailure(strconv.Itoa(v.ID), name, err)
+			ent.recordFailure(strconv.Itoa(v.ID), label, err)
 			continue
 		}
 		ent.recordSuccess()

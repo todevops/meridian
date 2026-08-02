@@ -54,15 +54,27 @@ type ModelReport struct {
 	Status string `json:"status"` // created（新建）/ existing（已存在）
 }
 
+// PipelineReport 为管道模式上报统计（仅 -mode=pipeline 时产生）。
+type PipelineReport struct {
+	Batches        int `json:"batches"`         // 上报批次数
+	Records        int `json:"records"`         // 上报总条数
+	Backoffs       int `json:"backoffs"`        // 退避次数
+	RetriedRecords int `json:"retried_records"` // 重试条数（重试尝试涉及的记录数）
+	Accepted       int `json:"accepted"`        // 服务端接收条数汇总
+	Rejected       int `json:"rejected"`        // 服务端拒绝 + 批次最终失败条数汇总
+}
+
 // Report 为完整迁移报告（写入 migration-report.json）。
 type Report struct {
-	StartedAt       time.Time      `json:"started_at"`
-	FinishedAt      time.Time      `json:"finished_at"`
-	DurationSeconds float64        `json:"duration_seconds"`
-	NetboxAPIURL    string         `json:"netbox_api_url"`
-	CMDBAPIURL      string         `json:"cmdb_api_url"`
-	Models          []ModelReport  `json:"models"`
-	Entities        []EntityReport `json:"entities"`
+	StartedAt       time.Time       `json:"started_at"`
+	FinishedAt      time.Time       `json:"finished_at"`
+	DurationSeconds float64         `json:"duration_seconds"`
+	Mode            string          `json:"mode"` // direct / pipeline
+	NetboxAPIURL    string          `json:"netbox_api_url"`
+	CMDBAPIURL      string          `json:"cmdb_api_url"`
+	Models          []ModelReport   `json:"models"`
+	Entities        []EntityReport  `json:"entities"`
+	Pipeline        *PipelineReport `json:"pipeline,omitempty"`
 }
 
 // entity 按类别键取回（或追加）实体统计块，保持固定的输出顺序。
@@ -121,5 +133,11 @@ func (r *Report) Summary() string {
 		}
 	}
 	fmt.Fprintf(&b, "失败合计：%d 条\n", r.TotalFailed())
+
+	if r.Pipeline != nil {
+		fmt.Fprintf(&b, "管道上报：批次 %d，总条数 %d，退避 %d 次，重试 %d 条，accepted %d，rejected %d\n",
+			r.Pipeline.Batches, r.Pipeline.Records, r.Pipeline.Backoffs,
+			r.Pipeline.RetriedRecords, r.Pipeline.Accepted, r.Pipeline.Rejected)
+	}
 	return b.String()
 }

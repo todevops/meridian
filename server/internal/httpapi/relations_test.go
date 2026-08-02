@@ -7,14 +7,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/glebarez/sqlite"
 	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
 	"meridian/server/internal/auth"
-	"meridian/server/internal/discovery"
 	"meridian/server/internal/store"
 )
 
@@ -50,7 +49,7 @@ func setupRelations(t *testing.T) (*gorm.DB, *httptest.Server, string) {
 		t.Fatalf("种子认证数据失败: %v", err)
 	}
 	gin.SetMode(gin.TestMode)
-	srv := httptest.NewServer(NewRouter(db, discovery.NewPipeline(db), authSvc))
+	srv := httptest.NewServer(newTestRouter(t, db, authSvc))
 	t.Cleanup(srv.Close)
 	return db, srv, loginAs(t, srv, "admin", "admin-pass")
 }

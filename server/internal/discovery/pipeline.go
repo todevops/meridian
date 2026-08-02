@@ -13,6 +13,7 @@ import (
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
+	"meridian/server/internal/linker"
 	"meridian/server/internal/reconcile"
 	"meridian/server/internal/store"
 )
@@ -37,8 +38,12 @@ type Pipeline struct {
 }
 
 // NewPipeline 创建摄入管道。
+// 同时把自动关联器（2B，internal/linker）挂为调和引擎后置钩子：
+// CI 建档/更新成功后异步按内置规则幂等 upsert 关系，失败仅记日志。
 func NewPipeline(db *gorm.DB) *Pipeline {
-	return &Pipeline{db: db, engine: reconcile.NewEngine(db)}
+	engine := reconcile.NewEngine(db)
+	engine.AddPostHook(linker.New(db).Handle)
+	return &Pipeline{db: db, engine: engine}
 }
 
 // Engine 返回管道内嵌的调和引擎（供 preview 等只读场景使用）。

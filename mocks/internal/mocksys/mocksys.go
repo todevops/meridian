@@ -1,6 +1,6 @@
-// Package mocksys 装配并运行全部 6 个官方系统 mock 服务：
+// Package mocksys 装配并运行全部 7 个官方系统 mock 服务：
 // n9e(:19001)、NetBox(:19002)、LibreNMS(:19003)、TSDB(:19004)、
-// 阿里云(:19005)、火山引擎(:19006)，各自独立端口、goroutine 并行。
+// 阿里云(:19005)、火山引擎(:19006)、vcsim(:19007)，各自独立端口、goroutine 并行。
 package mocksys
 
 import (
@@ -28,7 +28,7 @@ func listenAddr(envKey, def string) string {
 	return def
 }
 
-// Load 读取全部 fixture 并构建 6 个 mock 系统；任一 fixture 非法即失败。
+// Load 读取全部 fixture 并构建 7 个 mock 系统；任一 fixture 非法即失败。
 func Load() ([]System, error) {
 	builders := []struct {
 		name   string
@@ -42,6 +42,7 @@ func Load() ([]System, error) {
 		{"tsdb", "MOCK_TSDB_ADDR", ":19004", newTSDB},
 		{"aliyun", "MOCK_ALIYUN_ADDR", ":19005", newAliyun},
 		{"volcengine", "MOCK_VOLCENGINE_ADDR", ":19006", newVolcengine},
+		{"vcsim", "MOCK_VCSIM_ADDR", ":19007", newVCSim},
 	}
 
 	systems := make([]System, 0, len(builders))
@@ -50,7 +51,12 @@ func Load() ([]System, error) {
 		if err != nil {
 			return nil, fmt.Errorf("构建 %s mock 失败: %w", b.name, err)
 		}
-		systems = append(systems, System{Name: b.name, Addr: listenAddr(b.envKey, b.def), Handler: h})
+		addr := listenAddr(b.envKey, b.def)
+		systems = append(systems, System{Name: b.name, Addr: addr, Handler: h})
+		if b.name == "vcsim" {
+			// vcsim 客户端需要的是完整 SDK URL 与登录凭据，启动时显式打印。
+			log.Printf("[mockd] vcsim SDK 端点 http://127.0.0.1%s/sdk（默认凭据 user:pass，任意凭据均可登录）", addr)
+		}
 	}
 	return systems, nil
 }

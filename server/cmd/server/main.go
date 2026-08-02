@@ -14,10 +14,12 @@ import (
 
 	"meridian/server/internal/auth"
 	"meridian/server/internal/config"
+	"meridian/server/internal/credentials"
 	"meridian/server/internal/db"
 	"meridian/server/internal/discovery"
 	"meridian/server/internal/httpapi"
 	"meridian/server/internal/n9e"
+	"meridian/server/internal/scheduler"
 	"meridian/server/internal/stream"
 )
 
@@ -51,9 +53,25 @@ func main() {
 	// 发现摄入管道：HTTP 与 NATS 通道共用。
 	pipeline := discovery.NewPipeline(gdb)
 
+	// 凭据主密钥（F-005）：CMDB_MASTER_KEY 缺省时用内置开发键并大字告警。
+	credCipher, usingDefaultKey, err := credentials.LoadCipher()
+	if err != nil {
+		log.Fatalf("初始化凭据加解密失败: %v", err)
+	}
+	if usingDefaultKey {
+		log.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+		log.Println("!! 警告: CMDB_MASTER_KEY 未配置，凭据使用内置开发密钥加密    !!")
+		log.Println("!! 生产环境必须显式配置 CMDB_MASTER_KEY 并妥善保管           !!")
+		log.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+	}
+
+	// 采集任务调度器（F-033）：10 秒扫描到期任务，任务级互斥防重入。
+	sched := scheduler.New(gdb, pipeline, credCipher, cfg.ExecAllowedDir, cfg.ExecTimeout)
+
 	// 后台组件统一生命周期。
 	bgCtx, bgCancel := context.WithCancel(context.Background())
 	defer bgCancel()
+	go sched.Run(bgCtx)
 
 	// NATS JetStream 订阅通道：连不上则日志跳过，不影响 HTTP 摄入。
 	if sub, err := stream.StartNATSSubscriber(bgCtx, cfg.NATSURL, func(ctx context.Context, payload []byte) {
@@ -77,7 +95,7 @@ func main() {
 	}
 
 	// HTTP 服务。
-	r := httpapi.NewRouter(gdb, pipeline, authSvc)
+	r := httpapi.NewRouter(gdb, pipeline, authSvc, credCipher, sched)
 	srv := &http.Server{Addr: cfg.HTTPAddr, Handler: r}
 
 	// 捕获 SIGINT/SIGTERM 实现优雅关闭。

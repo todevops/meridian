@@ -56,10 +56,14 @@ func TestDryRunEndToEnd(t *testing.T) {
 	var buf strings.Builder
 	sink := record.NewDryRunSink(&buf)
 	logs := []string{}
+	var prodOut strings.Builder
 	if err := runner.Run(context.Background(), []runner.Collector{c}, sink, func(f string, args ...any) {
 		logs = append(logs, f)
-	}); err != nil {
+	}, &prodOut); err != nil {
 		t.Fatalf("dry-run 运行失败: %v", err)
+	}
+	if prodOut.String() != "CMDB_PRODUCED=1\n" {
+		t.Fatalf("dry-run 也应打印 CMDB_PRODUCED: %q", prodOut.String())
 	}
 
 	out := buf.String()

@@ -25,10 +25,11 @@ type RelationDefinition struct {
 
 // ModelDefinition 为创建模型的请求体（同 ModelCreateRequest）。
 type ModelDefinition struct {
-	Code       string                `json:"code"`
-	Name       string                `json:"name"`
-	Attributes []AttributeDefinition `json:"attributes"`
-	Relations  []RelationDefinition  `json:"relations"`
+	Code          string                `json:"code"`
+	Name          string                `json:"name"`
+	Attributes    []AttributeDefinition `json:"attributes"`
+	Relations     []RelationDefinition  `json:"relations"`
+	ReconcileKeys []string              `json:"reconcile_keys,omitempty"`
 }
 
 // MigrationSource 为迁移写入的 CI 来源标识（审计与调和合并优先级用）。
@@ -43,7 +44,8 @@ func netboxIDAttr() AttributeDefinition {
 // 与 scripts/seed/ 的差异：
 //   - 每个模型增加 netbox_id（留痕）及必要的 netbox_*_id 关联留痕属性；
 //   - network_device 增加 name 属性（CI 列表可读性需要），mgmt_ip 放宽为非必填
-//     （NetBox 设备允许无 primary_ip4，必填会造成可避免的单条失败）。
+//     （NetBox 设备允许无 primary_ip4，必填会造成可避免的单条失败）；
+//   - 调和键以 netbox_id 为首（管道模式重复执行时按留痕命中存量 CI，保证幂等）。
 func RequiredModels() []ModelDefinition {
 	return []ModelDefinition{
 		{
@@ -55,7 +57,8 @@ func RequiredModels() []ModelDefinition {
 				{Code: "address", Name: "地址", Type: "string", Source: "manual"},
 				netboxIDAttr(),
 			},
-			Relations: []RelationDefinition{},
+			Relations:     []RelationDefinition{},
+			ReconcileKeys: []string{"netbox_id", "code"},
 		},
 		{
 			Code: "rack",
@@ -70,6 +73,7 @@ func RequiredModels() []ModelDefinition {
 			Relations: []RelationDefinition{
 				{Code: "located_in", Name: "所在机房", TargetModel: "room", Cardinality: "one_to_one", Direction: "outgoing"},
 			},
+			ReconcileKeys: []string{"netbox_id"},
 		},
 		{
 			Code: "network_device",
@@ -86,6 +90,7 @@ func RequiredModels() []ModelDefinition {
 			Relations: []RelationDefinition{
 				{Code: "located_in", Name: "所在机柜", TargetModel: "rack", Cardinality: "one_to_one", Direction: "outgoing"},
 			},
+			ReconcileKeys: []string{"netbox_id", "serial_no", "mgmt_ip"},
 		},
 		{
 			Code: "vlan",
@@ -96,7 +101,8 @@ func RequiredModels() []ModelDefinition {
 				{Code: "description", Name: "描述", Type: "string", Source: MigrationSource},
 				netboxIDAttr(),
 			},
-			Relations: []RelationDefinition{},
+			Relations:     []RelationDefinition{},
+			ReconcileKeys: []string{"netbox_id", "vid"},
 		},
 		{
 			Code: "virtual_machine",
@@ -112,6 +118,7 @@ func RequiredModels() []ModelDefinition {
 			Relations: []RelationDefinition{
 				{Code: "runs_on", Name: "运行于", TargetModel: "physical_server", Cardinality: "one_to_one", Direction: "outgoing"},
 			},
+			ReconcileKeys: []string{"netbox_id", "instance_uuid"},
 		},
 	}
 }

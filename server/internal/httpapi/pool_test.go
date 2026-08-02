@@ -17,7 +17,6 @@ import (
 	"gorm.io/gorm/logger"
 
 	"meridian/server/internal/auth"
-	"meridian/server/internal/discovery"
 	"meridian/server/internal/store"
 )
 
@@ -50,7 +49,7 @@ func setupPool(t *testing.T) (*gorm.DB, *httptest.Server, store.Model, string) {
 		t.Fatalf("种子认证数据失败: %v", err)
 	}
 	gin.SetMode(gin.TestMode)
-	srv := httptest.NewServer(NewRouter(db, discovery.NewPipeline(db), authSvc))
+	srv := httptest.NewServer(newTestRouter(t, db, authSvc))
 	t.Cleanup(srv.Close)
 
 	// 登录 admin 取会话令牌（响应体 token 字段，Bearer 方式携带）。

@@ -1,5 +1,13 @@
 // Command migrate 是 NetBox → CMDB 一次性迁移工具（方案 13.1 节）。
 //
+// 命令行参数：
+//
+//	-mode       迁移模式：direct（默认，直连 CI/IPAM 接口）/ pipeline
+//	            （五类实体翻译为标准发现记录经摄入管道上报，IPAM 仍走 direct）
+//	-batch      管道模式每批上报记录数（默认 300，范围 200-500）
+//	-rate       管道模式上报限速（条/秒，默认 50）
+//	-max-retry  管道模式 429/5xx 指数退避最大重试次数（默认 5，退避 1s/2s/4s/8s 封顶）
+//
 // 环境变量：
 //
 //	NETBOX_API_URL  NetBox API 地址（必填，如 http://localhost:19092 或 mock :19002）
@@ -15,6 +23,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -27,6 +36,22 @@ import (
 )
 
 func main() {
+	mode := flag.String("mode", migrate.ModeDirect, "迁移模式：direct / pipeline")
+	batch := flag.Int("batch", migrate.DefaultBatchSize, "管道模式每批上报记录数（200-500）")
+	rate := flag.Float64("rate", migrate.DefaultRate, "管道模式上报限速（条/秒）")
+	maxRetry := flag.Int("max-retry", migrate.DefaultMaxRetry, "管道模式 429/5xx 最大重试次数")
+	flag.Parse()
+
+	if *mode != migrate.ModeDirect && *mode != migrate.ModePipeline {
+		log.Fatalf("非法 -mode %q：仅支持 direct / pipeline", *mode)
+	}
+	opts := migrate.Options{
+		Mode:      *mode,
+		BatchSize: *batch,
+		Rate:      *rate,
+		MaxRetry:  *maxRetry,
+	}.Normalize()
+
 	netboxURL := os.Getenv("NETBOX_API_URL")
 	netboxToken := os.Getenv("NETBOX_TOKEN")
 	cmdbURL := getEnv("MERIDIAN_API_URL", "http://localhost:8081")
@@ -50,9 +75,9 @@ func main() {
 		log.Printf("CMDB 登录成功（账号 %s）", user)
 	}
 
-	log.Printf("开始迁移：NetBox=%s → CMDB=%s", netboxURL, cmdbURL)
+	log.Printf("开始迁移：NetBox=%s → CMDB=%s（mode=%s）", netboxURL, cmdbURL, opts.Mode)
 	m := migrate.New(netbox.NewClient(netboxURL, netboxToken), cmClient)
-	report, err := m.Run(ctx, netboxURL, cmdbURL)
+	report, err := m.RunWithOptions(ctx, netboxURL, cmdbURL, opts)
 
 	// 无论是否致命错误，只要产生了报告就落盘并打印摘要（保留已完成部分的证据）。
 	if report != nil {

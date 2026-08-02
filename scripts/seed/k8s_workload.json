@@ -10,6 +10,7 @@
     { "code": "replicas", "name": "副本数", "type": "number", "source": "apiserver" }
   ],
   "relations": [
-    { "code": "belongs_to", "name": "归属应用", "target_model": "biz_app", "cardinality": "one_to_one", "direction": "outgoing" }
+    { "code": "belongs_to", "name": "归属应用", "target_model": "biz_app", "cardinality": "one_to_one", "direction": "outgoing" },
+    { "code": "in_namespace", "name": "归属命名空间", "target_model": "k8s_namespace", "cardinality": "one_to_one", "direction": "outgoing" }
   ]
 }

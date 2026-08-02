@@ -7,5 +7,9 @@
     { "code": "owner", "name": "负责人", "type": "string", "source": "manual" },
     { "code": "level", "name": "等级", "type": "enum", "enum_values": ["L1", "L2", "L3"], "source": "manual" }
   ],
-  "relations": []
+  "relations": [
+    { "code": "belongs_to", "name": "归属业务线", "target_model": "biz_line", "cardinality": "one_to_one", "direction": "outgoing" },
+    { "code": "deployed_on", "name": "部署于", "target_model": "host", "cardinality": "one_to_one", "direction": "outgoing" },
+    { "code": "depends_on", "name": "依赖于", "target_model": "db_instance", "cardinality": "one_to_one", "direction": "outgoing" }
+  ]
 }

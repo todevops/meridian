@@ -122,3 +122,13 @@ pnpm --filter web dev
 ```
 
 随后浏览器访问 http://localhost:3000 ，先以 `admin` / `admin123`（或 `ADMIN_INITIAL_PASSWORD` 设定的值）登录，再依次体验模型列表、CI 实例列表、发现记录演示等页面。种子模型定义见 `scripts/seed/`（host 模型含 `reconcile_keys=["ident","ip"]` 及方案 5.1 节 n9e 映射属性），样例发现记录见 `scripts/sample-records/`。
+
+## 阶段二进度
+
+### 迭代 2A（导航 + 凭据 + 迁移管道 + 模型扩展）
+
+- **分组导航（F-090）**：侧边栏重构为六组结构——概览、资产、发现、网络（IPAM）、机房（DCIM）、系统管理，支持分组折叠记忆、发现池待办徽标、按权限点过滤与面包屑；新页面一律按组归位，不再平铺入口。
+- **集成管理 `/integrations`（F-005）**：凭据纳管页面，覆盖 vCenter / 阿里云 / 火山 / SNMP / DB / kubeconfig / SSH-IPMI / n9e / NetBox 九类凭据的创建、轮换与使用审计；接口永不回传明文，采集任务仅按引用使用凭据。
+- **采集任务 `/discovery`（F-033）**：采集任务与数据源管理页面，任务创建时选择集成凭据，展示状态（idle/running/error）、最近成功时间、失败原因与运行历史，支持手动触发运行。
+- **NetBox 迁移管道模式（F-074）**：migrator 新增 `--mode=pipeline`，将迁移数据翻译为标准发现记录批量写入发现管道（限速 + 退避），借调和引擎获得幂等（重跑 = 更新）。
+- **模型扩展（F-027/F-028 前置）**：种子模型自 9 个扩至 11 个——新增 `biz_line`（业务线：编码唯一、负责人、等级 critical/high/normal）与 `k8s_namespace`（K8s 命名空间：集群 + 名称，`mounted_to → biz_app` 整挂应用）；`biz_app` 补 `belongs_to → biz_line`、`deployed_on → host`、`depends_on → db_instance`，`k8s_workload` 补 `in_namespace → k8s_namespace`（命名空间挂载后工作负载沿「工作负载 → 命名空间 → 应用」链继承归属），`host` 补 `connected_to → network_device`（接入于）。种子定义见 `scripts/seed/`，导入仍走 `scripts/seed-models.sh`。

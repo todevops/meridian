@@ -19,18 +19,24 @@ type Permission struct {
 
 // 权限点编码常量。
 const (
-	PermModelRead      = "model:read"
-	PermModelWrite     = "model:write"
-	PermCIRead         = "ci:read"
-	PermCIWrite        = "ci:write"
-	PermDiscoveryRead  = "discovery:read"
-	PermDiscoveryWrite = "discovery:write"
-	PermIPAMRead       = "ipam:read"
-	PermIPAMWrite      = "ipam:write"
-	PermDCIMRead       = "dcim:read"
-	PermDCIMWrite      = "dcim:write"
-	PermUserManage     = "user:manage"
-	PermRoleManage     = "role:manage"
+	PermModelRead       = "model:read"
+	PermModelWrite      = "model:write"
+	PermCIRead          = "ci:read"
+	PermCIWrite         = "ci:write"
+	PermDiscoveryRead   = "discovery:read"
+	PermDiscoveryWrite  = "discovery:write"
+	PermIPAMRead        = "ipam:read"
+	PermIPAMWrite       = "ipam:write"
+	PermDCIMRead        = "dcim:read"
+	PermDCIMWrite       = "dcim:write"
+	PermUserManage      = "user:manage"
+	PermRoleManage      = "role:manage"
+	PermCredentialRead  = "credential:read"
+	PermCredentialWrite = "credential:write"
+	PermTaskRead        = "task:read"
+	PermTaskWrite       = "task:write"
+	PermAlertRead       = "alert:read"
+	PermAlertWrite      = "alert:write"
 )
 
 // Catalog 是系统全部权限点的固定目录，/api/v1/permissions 接口据此返回。
@@ -47,6 +53,12 @@ var Catalog = []Permission{
 	{PermDCIMWrite, "DCIM 维护", "设备上下架操作"},
 	{PermUserManage, "用户管理", "用户的新建、修改、停用与角色分配"},
 	{PermRoleManage, "角色管理", "角色与权限点的维护"},
+	{PermCredentialRead, "凭据查询", "查询凭据元数据与审计记录（永不返回明文）"},
+	{PermCredentialWrite, "凭据维护", "新建、修改与轮换凭据"},
+	{PermTaskRead, "采集任务查询", "查询采集任务与执行记录"},
+	{PermTaskWrite, "采集任务维护", "新建、修改与手动触发采集任务"},
+	{PermAlertRead, "告警查询", "查询告警事件列表"},
+	{PermAlertWrite, "告警维护", "确认（ack）告警事件"},
 }
 
 // catalogSet 用于校验权限点编码合法性。
@@ -90,15 +102,21 @@ func allPermissionCodes() []string {
 // builtinRoles 是内置角色定义，Seed 时幂等写入。
 var builtinRoles = []builtinRole{
 	{"admin", "管理员", "拥有全部权限", allPermissionCodes()},
-	{"operator", "运维", "模型/CI/IPAM/DCIM 的日常维护、发现记录上报与发现池裁决", []string{
+	{"operator", "运维", "模型/CI/IPAM/DCIM 的日常维护、发现记录上报与发现池裁决、凭据与采集任务管理、告警确认", []string{
 		PermModelRead, PermModelWrite, PermCIRead, PermCIWrite, PermDiscoveryRead, PermDiscoveryWrite,
 		PermIPAMRead, PermIPAMWrite, PermDCIMRead, PermDCIMWrite,
+		PermCredentialRead, PermCredentialWrite, PermTaskRead, PermTaskWrite,
+		PermAlertRead, PermAlertWrite,
 	}},
-	{"viewer", "只读", "仅查询模型、CI、IPAM/DCIM 与执行调和预览", []string{
+	{"viewer", "只读", "仅查询模型、CI、IPAM/DCIM、凭据元数据、采集任务、告警与执行调和预览", []string{
 		PermModelRead, PermCIRead, PermDiscoveryRead, PermIPAMRead, PermDCIMRead,
+		PermCredentialRead, PermTaskRead, PermAlertRead,
 	}},
-	{"collector", "采集器", "仅供采集器服务账号上报发现记录、确保模型配置", []string{
-		PermModelRead, PermModelWrite, PermDiscoveryWrite,
+	// collector 仅供采集器服务账号上报发现记录（D-01）：收缩为 discovery:write + model:read。
+	// 注意：需要写模型的场景（如 NetBox 迁移器）必须使用独立服务账号并单独授权
+	// model:write，不得复用 collector 角色。
+	{"collector", "采集器", "仅供采集器服务账号上报发现记录、读取模型定义", []string{
+		PermModelRead, PermDiscoveryWrite,
 	}},
 }
 

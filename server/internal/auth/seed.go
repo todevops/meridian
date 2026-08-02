@@ -36,6 +36,11 @@ func (s *Service) Seed(adminPassword, collectorPassword string) error {
 		}
 	}
 
+	// D-01：collector 角色已收缩（去掉 model:write），存量库需显式回收该策略。
+	if _, err := s.Enforcer.RemovePolicy(RoleSubject("collector"), "model", "write"); err != nil {
+		return fmt.Errorf("回收 collector 的 model:write 策略失败: %w", err)
+	}
+
 	// 内置账号：admin（全权限）与 collector（采集上报）。
 	if err := s.seedBuiltinUser("admin", "系统管理员", adminPassword, "admin"); err != nil {
 		return err

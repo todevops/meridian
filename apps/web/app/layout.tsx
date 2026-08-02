@@ -4,6 +4,7 @@ import type { Metadata } from "next"
 import "@workspace/ui/globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AppSidebar } from "@/components/app-sidebar"
+import { BreadcrumbBar } from "@/components/breadcrumb-bar"
 import { cn } from "@workspace/ui/lib/utils"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
@@ -33,7 +34,10 @@ export default function RootLayout({
         <ThemeProvider>
           <div className="flex min-h-svh">
             <AppSidebar />
-            <main className="min-w-0 flex-1">{children}</main>
+            <main className="min-w-0 flex-1">
+              <BreadcrumbBar />
+              {children}
+            </main>
           </div>
         </ThemeProvider>
       </body>

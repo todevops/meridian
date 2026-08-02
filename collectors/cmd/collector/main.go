@@ -20,6 +20,13 @@
 //	LIBRENMS_API_TOKEN  LibreNMS X-Auth-Token（无默认，必填）
 //	NMAP_FROM_FILE      nmap -oX 结果文件（设置后 ipscan 不再现扫）
 //	NMAP_SCAN_TARGET    ipscan 现扫网段（如 192.168.1.0/24）
+//	VSPHERE_URL         vCenter SDK（默认 :19007，简写自动补 https:// 与 /sdk）
+//	VSPHERE_USERNAME    vCenter 用户名（vcsim 默认 user）
+//	VSPHERE_PASSWORD    vCenter 密码（vcsim 默认 pass）
+//	VSPHERE_INSECURE    跳过 TLS 证书校验（默认 true）
+//
+// 成功上报后于 stdout 末行打印 CMDB_PRODUCED=<总条数>（2A 任务调度器据此统计产出，
+// dry-run 同样打印便于联调）。
 package main
 
 import (
@@ -29,6 +36,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -39,14 +47,15 @@ import (
 	"collectors/internal/record"
 	"collectors/internal/runner"
 	"collectors/internal/volc"
+	"collectors/internal/vsphere"
 )
 
 // allCollectors 是 -collector=all 时的运行顺序。
-var allCollectors = []string{"aliyun", "volc", "dbdiscover", "librenms", "ipscan"}
+var allCollectors = []string{"aliyun", "volc", "dbdiscover", "librenms", "ipscan", "vsphere"}
 
 func main() {
 	var (
-		collectorFlag = flag.String("collector", "all", "采集器：aliyun|volc|dbdiscover|librenms|ipscan|all（支持逗号分隔多选）")
+		collectorFlag = flag.String("collector", "all", "采集器：aliyun|volc|dbdiscover|librenms|ipscan|vsphere|all（支持逗号分隔多选）")
 		dryRun        = flag.Bool("dry-run", false, "只打印发现记录，不上报 CMDB、不变更模型")
 	)
 	flag.Parse()
@@ -86,7 +95,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	if err := runner.Run(ctx, cols, sink, log.Printf); err != nil {
+	if err := runner.Run(ctx, cols, sink, log.Printf, os.Stdout); err != nil {
 		log.Fatalf("采集运行存在失败: %v", err)
 	}
 	log.Print("全部采集器运行完成")
@@ -104,8 +113,19 @@ func build(name, cmdbAPI, authToken string, dryRun bool) (runner.Collector, erro
 	case "librenms":
 		return librenms.New(record.Getenv("LIBRENMS_API_URL", ":19003"), record.Getenv("LIBRENMS_API_TOKEN", "")), nil
 	case "ipscan":
-		return ipscan.New(record.Getenv("NMAP_FROM_FILE", ""), record.Getenv("NMAP_SCAN_TARGET", "")), nil
+		return ipscan.New(record.Getenv("NMAP_FROM_FILE", ""), record.Getenv("NMAP_SCAN_TARGET", ""), cmdbAPI, authToken, log.Printf), nil
+	case "vsphere":
+		insecure := true // 默认跳过证书校验（对接 vcsim/自签名 vCenter）
+		if v := strings.TrimSpace(os.Getenv("VSPHERE_INSECURE")); v != "" {
+			b, err := strconv.ParseBool(v)
+			if err != nil {
+				return nil, fmt.Errorf("VSPHERE_INSECURE 取值非法 %q: %w", v, err)
+			}
+			insecure = b
+		}
+		return vsphere.New(record.Getenv("VSPHERE_URL", ":19007"),
+			record.Getenv("VSPHERE_USERNAME", ""), record.Getenv("VSPHERE_PASSWORD", ""), insecure, log.Printf)
 	default:
-		return nil, fmt.Errorf("未知采集器 %q（可选 aliyun|volc|dbdiscover|librenms|ipscan|all）", name)
+		return nil, fmt.Errorf("未知采集器 %q（可选 aliyun|volc|dbdiscover|librenms|ipscan|vsphere|all）", name)
 	}
 }

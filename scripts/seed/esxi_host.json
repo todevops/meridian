@@ -1,0 +1,15 @@
+{
+  "code": "esxi_host",
+  "reconcile_keys": ["hardware_uuid"],
+  "name": "ESXi 宿主机",
+  "attributes": [
+    { "code": "name", "name": "宿主机名称", "type": "string", "required": true, "unique": true, "source": "vcenter" },
+    { "code": "hardware_uuid", "name": "硬件 UUID", "type": "string", "required": true, "unique": true, "source": "vcenter" },
+    { "code": "model", "name": "硬件型号", "type": "string", "source": "vcenter" },
+    { "code": "cpu_cores", "name": "CPU 物理核数", "type": "number", "source": "vcenter" },
+    { "code": "mem_gb", "name": "内存(GB)", "type": "number", "source": "vcenter" }
+  ],
+  "relations": [
+    { "code": "belongs_to", "name": "归属于", "target_model": "esxi_cluster", "cardinality": "one_to_one", "direction": "outgoing" }
+  ]
+}

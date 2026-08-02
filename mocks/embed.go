@@ -5,5 +5,6 @@ package mocks
 import "embed"
 
 // FS 内嵌 fixtures/ 目录下全部 mock 数据文件。
+//
 //go:embed all:fixtures
 var FS embed.FS

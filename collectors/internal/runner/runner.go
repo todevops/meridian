@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 
 	"collectors/internal/record"
 )
@@ -17,8 +18,11 @@ type Collector interface {
 
 // Run 顺序运行采集器并上报记录。单个采集器失败不阻断其余采集器，
 // 所有失败以聚合错误返回（供进程退出码使用）。
-func Run(ctx context.Context, cols []Collector, sink record.Sink, logf func(format string, args ...any)) error {
+// 运行结束后向 out 打印一行 CMDB_PRODUCED=<成功上报总条数>（2A 任务调度器据此统计产出，
+// dry-run 同样打印便于联调）；调用方传 os.Stdout 即满足"stdout 末行"约定。
+func Run(ctx context.Context, cols []Collector, sink record.Sink, logf func(format string, args ...any), out io.Writer) error {
 	var errs []error
+	produced := 0
 	for _, c := range cols {
 		recs, err := c.Collect(ctx)
 		if err != nil {
@@ -33,7 +37,10 @@ func Run(ctx context.Context, cols []Collector, sink record.Sink, logf func(form
 		if err := sink.Submit(ctx, recs); err != nil {
 			logf("采集器 %s 上报失败: %v", c.Name(), err)
 			errs = append(errs, fmt.Errorf("采集器 %s 上报: %w", c.Name(), err))
+			continue
 		}
+		produced += len(recs)
 	}
+	fmt.Fprintf(out, "CMDB_PRODUCED=%d\n", produced)
 	return errors.Join(errs...)
 }

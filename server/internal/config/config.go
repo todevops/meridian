@@ -55,6 +55,12 @@ type Config struct {
 	// CollectorInitialPassword 为内置 collector 采集服务账号初始密码
 	// （COLLECTOR_INITIAL_PASSWORD），默认 collector123；仅在首次种子时生效。
 	CollectorInitialPassword string
+	// ExecAllowedDir 为 exec 采集执行器的二进制白名单目录（CMDB_EXEC_ALLOWED_DIR）；
+	// 默认 ../collectors（相对服务端工作目录）。空值表示禁用 exec 执行器。
+	ExecAllowedDir string
+	// ExecTimeout 为 exec 采集执行器默认超时（CMDB_EXEC_TIMEOUT_SECONDS 秒），
+	// 默认 5 分钟；任务 config.timeout_seconds 可逐任务覆盖。
+	ExecTimeout time.Duration
 }
 
 // Load 读取环境变量并填充默认值。
@@ -72,6 +78,8 @@ func Load() Config {
 		TokenTTLHours:            getInt("TOKEN_TTL_HOURS", 24),
 		AdminInitialPassword:     getEnv("ADMIN_INITIAL_PASSWORD", "admin123"),
 		CollectorInitialPassword: getEnv("COLLECTOR_INITIAL_PASSWORD", "collector123"),
+		ExecAllowedDir:           getEnv("CMDB_EXEC_ALLOWED_DIR", "../collectors"),
+		ExecTimeout:              getDuration("CMDB_EXEC_TIMEOUT_SECONDS", 5*time.Minute),
 	}
 }
 

@@ -79,7 +79,7 @@ func TestCollectFromFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	recs, err := New(path, "").Collect(context.Background())
+	recs, err := New(path, "", "", "", nil).Collect(context.Background())
 	if err != nil {
 		t.Fatalf("Collect 失败: %v", err)
 	}
@@ -105,7 +105,7 @@ func TestCollectFromFile(t *testing.T) {
 }
 
 func TestCollectWithInjectedRunner(t *testing.T) {
-	c := New("", "10.80.0.0/29")
+	c := New("", "10.80.0.0/29", "", "", nil)
 	c.Runner = func(_ context.Context, target string) ([]byte, error) {
 		if target != "10.80.0.0/29" {
 			t.Errorf("扫描目标不符: %s", target)
@@ -122,21 +122,21 @@ func TestCollectWithInjectedRunner(t *testing.T) {
 }
 
 func TestCollectNoInput(t *testing.T) {
-	_, err := New("", "").Collect(context.Background())
+	_, err := New("", "", "", "", nil).Collect(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "NMAP_FROM_FILE") {
 		t.Fatalf("无输入时应返回明确错误: %v", err)
 	}
 }
 
 func TestCollectMissingFile(t *testing.T) {
-	_, err := New(filepath.Join(t.TempDir(), "not-exist.xml"), "").Collect(context.Background())
+	_, err := New(filepath.Join(t.TempDir(), "not-exist.xml"), "", "", "", nil).Collect(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "读取") {
 		t.Fatalf("文件不存在应返回错误: %v", err)
 	}
 }
 
 func TestCollectRunnerError(t *testing.T) {
-	c := New("", "10.0.0.0/24")
+	c := New("", "10.0.0.0/24", "", "", nil)
 	c.Runner = func(context.Context, string) ([]byte, error) {
 		return nil, errors.New("exit status 1")
 	}
@@ -150,7 +150,7 @@ func TestCollectInvalidXML(t *testing.T) {
 	if err := os.WriteFile(path, []byte("<nmaprun><host>"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := New(path, "").Collect(context.Background()); err == nil {
+	if _, err := New(path, "", "", "", nil).Collect(context.Background()); err == nil {
 		t.Fatal("非法 XML 应返回错误")
 	}
 }

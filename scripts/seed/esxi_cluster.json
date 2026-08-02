@@ -1,0 +1,12 @@
+{
+  "code": "esxi_cluster",
+  "reconcile_keys": ["moid"],
+  "name": "ESXi 集群",
+  "attributes": [
+    { "code": "name", "name": "集群名称", "type": "string", "required": true, "unique": true, "source": "vcenter" },
+    { "code": "moid", "name": "vCenter MOID", "type": "string", "required": true, "unique": true, "source": "vcenter" }
+  ],
+  "relations": [
+    { "code": "located_in", "name": "所在机房", "target_model": "room", "cardinality": "one_to_one", "direction": "outgoing" }
+  ]
+}

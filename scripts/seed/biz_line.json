@@ -1,0 +1,11 @@
+{
+  "code": "biz_line",
+  "name": "业务线",
+  "attributes": [
+    { "code": "code", "name": "业务线编码", "type": "string", "required": true, "unique": true, "source": "manual" },
+    { "code": "name", "name": "业务线名称", "type": "string", "required": true, "source": "manual" },
+    { "code": "owner", "name": "负责人", "type": "string", "source": "manual" },
+    { "code": "level", "name": "等级", "type": "enum", "enum_values": ["critical", "high", "normal"], "source": "manual" }
+  ],
+  "relations": []
+}

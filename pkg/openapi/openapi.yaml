@@ -25,6 +25,12 @@ tags:
     description: 发现池（待人工裁决的发现记录）
   - name: dcim
     description: DCIM（机房/机柜/U 位/容量）
+  - name: credentials
+    description: 凭据纳管（F-005，密文存储，永不回明文）
+  - name: discovery-tasks
+    description: 采集任务（F-033，周期调度与手动触发）
+  - name: alerts
+    description: 告警事件（2B，黑设备等风险线索的查询与确认）
 # 全局认证要求：除 /api/v1/auth/login 与未列入契约的健康检查外，所有接口需携带会话
 security:
   - cookieAuth: []
@@ -755,6 +761,300 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /api/v1/credentials:
+    get:
+      tags: [credentials]
+      summary: 查询凭据列表
+      operationId: listCredentials
+      description: 凭据元数据分页列表（secret 密文存储，任何响应永不回明文）
+      parameters:
+        - name: type
+          in: query
+          description: 按凭据类型过滤
+          required: false
+          schema:
+            type: string
+            enum: [vcenter, aliyun, volc, snmp, db, kubeconfig, ssh_ipmi, n9e, netbox]
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: 凭据分页列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CredentialListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [credentials]
+      summary: 创建凭据
+      operationId: createCredential
+      description: secret 明文仅在请求体传入，服务端以 AES-256-GCM 加密后落库并记 create 审计
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CredentialCreateRequest'
+      responses:
+        '201':
+          description: 创建成功，返回凭据元数据（不含 secret）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Credential'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/credentials/{credential_id}:
+    patch:
+      tags: [credentials]
+      summary: 修改凭据非密字段
+      operationId: patchCredential
+      description: 仅可修改 name/description；修改 secret 请走轮换接口
+      parameters:
+        - $ref: '#/components/parameters/CredentialId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CredentialPatchRequest'
+      responses:
+        '200':
+          description: 修改成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Credential'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/credentials/{credential_id}/rotate:
+    post:
+      tags: [credentials]
+      summary: 轮换凭据 secret
+      operationId: rotateCredential
+      description: 以新 secret 重新加密落库、刷新 last_rotated_at 并记 rotate 审计
+      parameters:
+        - $ref: '#/components/parameters/CredentialId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CredentialRotateRequest'
+      responses:
+        '200':
+          description: 轮换成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Credential'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/credentials/{credential_id}/audits:
+    get:
+      tags: [credentials]
+      summary: 查询凭据审计记录
+      operationId: listCredentialAudits
+      description: 凭据操作审计（create/update/rotate/use），含操作者、来源（人工或任务）与时间
+      parameters:
+        - $ref: '#/components/parameters/CredentialId'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: 审计分页列表（按时间倒序）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CredentialAuditListResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/discovery/tasks:
+    get:
+      tags: [discovery-tasks]
+      summary: 查询采集任务列表
+      operationId: listDiscoveryTasks
+      description: 采集任务分页列表，含调度状态与最近执行信息
+      parameters:
+        - name: enabled
+          in: query
+          description: 按启用状态过滤
+          required: false
+          schema:
+            type: string
+            enum: ['true', 'false']
+        - name: collector_type
+          in: query
+          description: 按采集器类型精确过滤
+          required: false
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: 任务分页列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscoveryTaskListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [discovery-tasks]
+      summary: 创建采集任务
+      operationId: createDiscoveryTask
+      description: collector_type 为 builtin:n9e-consumer（进程内 n9e 消费）或 exec:<binary>（白名单目录内二进制，凭据 secret 以大写键名注入环境变量）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiscoveryTaskCreateRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscoveryTask'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/discovery/tasks/{task_id}:
+    patch:
+      tags: [discovery-tasks]
+      summary: 修改采集任务
+      operationId: patchDiscoveryTask
+      description: 增量修改任务字段；运行中不允许修改 collector_type
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiscoveryTaskPatchRequest'
+      responses:
+        '200':
+          description: 修改成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscoveryTask'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/v1/discovery/tasks/{task_id}/run:
+    post:
+      tags: [discovery-tasks]
+      summary: 手动触发任务执行
+      operationId: runDiscoveryTask
+      description: 同步执行一次任务并返回执行记录；执行器层面的失败（采集报错/超时）以 success=false 落执行记录返回；任务互斥运行中返回 409
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: 执行完成，返回执行记录
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscoveryTaskRun'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/v1/discovery/tasks/{task_id}/runs:
+    get:
+      tags: [discovery-tasks]
+      summary: 查询任务执行记录
+      operationId: listDiscoveryTaskRuns
+      description: 任务执行记录分页列表（按开始时间倒序），exec 执行器含 4KB 截断的输出尾巴
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: 执行记录分页列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscoveryTaskRunListResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/alerts:
+    get:
+      tags: [alerts]
+      summary: 查询告警事件列表
+      operationId: listAlerts
+      description: 服务端检测点（如调和引擎黑设备识别、IP 扫描比对）写入的告警事件，按创建时间倒序分页返回
+      parameters:
+        - name: acknowledged
+          in: query
+          description: 按确认状态过滤（true=已确认，false=待确认；缺省返回全部）
+          required: false
+          schema:
+            type: string
+            enum: ["true", "false"]
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: 告警事件分页列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/v1/alerts/{alert_id}/ack:
+    post:
+      tags: [alerts]
+      summary: 确认告警事件
+      operationId: ackAlert
+      description: 把告警事件置为已确认（acknowledged=true），重复确认为幂等操作
+      parameters:
+        - $ref: '#/components/parameters/AlertId'
+      responses:
+        '200':
+          description: 确认成功，返回更新后的告警事件
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertEvent'
+        '404':
+          $ref: '#/components/responses/NotFound'
 components:
   securitySchemes:
     cookieAuth:
@@ -808,6 +1108,22 @@ components:
       schema:
         type: string
         format: uuid
+    CredentialId:
+      name: credential_id
+      in: path
+      description: 凭据 ID
+      required: true
+      schema:
+        type: string
+        format: uuid
+    TaskId:
+      name: task_id
+      in: path
+      description: 采集任务 ID
+      required: true
+      schema:
+        type: string
+        format: uuid
     Page:
       name: page
       in: query
@@ -827,6 +1143,14 @@ components:
         minimum: 1
         maximum: 200
         default: 20
+    AlertId:
+      name: alert_id
+      in: path
+      description: 告警事件 ID
+      required: true
+      schema:
+        type: string
+        format: uuid
   responses:
     BadRequest:
       description: 请求参数或校验规则不通过
@@ -1617,3 +1941,315 @@ components:
           type: object
           additionalProperties: true
           description: 属性增量覆盖（合并发现属性后强制走模型校验）
+    Credential:
+      type: object
+      required: [id, name, type, description, use_count, created_at, updated_at]
+      description: 凭据元数据（F-005）。secret 以 AES-256-GCM 密文落库，任何响应永不回明文
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          description: 凭据名称
+        type:
+          type: string
+          enum: [vcenter, aliyun, volc, snmp, db, kubeconfig, ssh_ipmi, n9e, netbox]
+          description: 凭据类型
+        description:
+          type: string
+        last_rotated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: 最近轮换时间
+        use_count:
+          type: integer
+          description: 被采集任务使用次数
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    CredentialCreateRequest:
+      type: object
+      required: [name, type, secret]
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [vcenter, aliyun, volc, snmp, db, kubeconfig, ssh_ipmi, n9e, netbox]
+        description:
+          type: string
+        secret:
+          type: object
+          additionalProperties: true
+          description: secret 明文 JSON（仅请求体传入，服务端加密落库后不可读回）
+    CredentialPatchRequest:
+      type: object
+      description: 仅非密字段可改
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+    CredentialRotateRequest:
+      type: object
+      required: [secret]
+      properties:
+        secret:
+          type: object
+          additionalProperties: true
+          description: 新 secret 明文 JSON
+    CredentialListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Credential'
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+    CredentialAudit:
+      type: object
+      required: [id, action, operator, source, created_at]
+      description: 凭据操作审计（create/update/rotate/use）
+      properties:
+        id:
+          type: string
+          format: uuid
+        credential_id:
+          type: string
+          format: uuid
+        action:
+          type: string
+          enum: [create, update, rotate, use]
+        operator:
+          type: string
+          description: 操作者用户名（任务使用场景为 system）
+        source:
+          type: string
+          description: 来源（manual 或 task:<任务名>）
+        created_at:
+          type: string
+          format: date-time
+    CredentialAuditListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CredentialAudit'
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+    DiscoveryTask:
+      type: object
+      required: [id, name, collector_type, interval_seconds, enabled, config, status, run_count, fail_count, created_at, updated_at]
+      description: 采集任务（F-033）
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        collector_type:
+          type: string
+          description: builtin:n9e-consumer 或 exec:<binary>
+          example: builtin:n9e-consumer
+        credential_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: 关联凭据（执行时解密 secret 注入）
+        interval_seconds:
+          type: integer
+          minimum: 10
+          description: 调度间隔秒数（调度粒度 10 秒）
+        enabled:
+          type: boolean
+        config:
+          type: object
+          additionalProperties: true
+          description: 执行器配置（builtin 需 api_url；exec 需 binary/args/env/timeout_seconds）
+        status:
+          type: string
+          enum: [idle, running, error]
+        last_run_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_success_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_error:
+          type: string
+          description: 最近错误摘要（截断）
+        run_count:
+          type: integer
+        fail_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    DiscoveryTaskCreateRequest:
+      type: object
+      required: [name, collector_type]
+      properties:
+        name:
+          type: string
+        collector_type:
+          type: string
+          description: builtin:n9e-consumer 或 exec:<binary>
+        credential_id:
+          type: string
+          format: uuid
+        interval_seconds:
+          type: integer
+          minimum: 10
+          default: 300
+        enabled:
+          type: boolean
+          default: false
+        config:
+          type: object
+          additionalProperties: true
+    DiscoveryTaskPatchRequest:
+      type: object
+      description: 全字段可选（增量修改）；credential_id 传空串表示解除凭据关联
+      properties:
+        name:
+          type: string
+        collector_type:
+          type: string
+        credential_id:
+          type: string
+        interval_seconds:
+          type: integer
+          minimum: 10
+        enabled:
+          type: boolean
+        config:
+          type: object
+          additionalProperties: true
+    DiscoveryTaskListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiscoveryTask'
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+    DiscoveryTaskRun:
+      type: object
+      required: [id, task_id, trigger, started_at, success, produced]
+      description: 一次任务执行记录
+      properties:
+        id:
+          type: string
+          format: uuid
+        task_id:
+          type: string
+          format: uuid
+        trigger:
+          type: string
+          enum: [schedule, manual]
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+          nullable: true
+        success:
+          type: boolean
+        produced:
+          type: integer
+          description: 摄入接受的发现记录条数（exec 执行器经 CMDB_PRODUCED=<n> 输出行声明）
+        error_summary:
+          type: string
+          description: 失败摘要（截断 1000 字节）
+        output:
+          type: string
+          description: stdout/stderr 合并输出尾巴（截断 4KB，exec 执行器）
+    DiscoveryTaskRunListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiscoveryTaskRun'
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+    AlertEvent:
+      type: object
+      required: [id, level, title, source, detail, acknowledged, created_at]
+      description: 告警事件（2B）：服务端检测点写入的风险线索（如黑设备主机），可经 ack 确认
+      properties:
+        id:
+          type: string
+          format: uuid
+        level:
+          type: string
+          enum: [info, warning, critical]
+          description: 告警级别
+        title:
+          type: string
+          description: 告警标题
+          example: 发现黑设备风险主机
+        source:
+          type: string
+          description: 产生来源（发现来源系统 / 采集器标识）
+          example: ipscan
+        ci_id:
+          type: string
+          description: 关联 CI（可空，如网段级告警无单一 CI）
+        detail:
+          type: string
+          description: 详细说明
+        acknowledged:
+          type: boolean
+          description: 是否已确认
+        created_at:
+          type: string
+          format: date-time
+    AlertListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AlertEvent'
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer

@@ -38,8 +38,8 @@ type Model struct {
 	Code       string                                    `gorm:"size:64;not null;uniqueIndex" json:"code"`
 	Attributes datatypes.JSONType[[]AttributeDefinition] `json:"attributes"`
 	Relations  datatypes.JSONType[[]RelationDefinition]  `json:"relations"`
-	// ReconcileKeys 为调和键配置（按优先级排序，如 ["ident","ip"]），
-	// 调和引擎据此判定发现记录与存量 CI 的同一性。
+	// ReconcileKeys 为调和键配置（按优先级排序，如主机模型为 ["ip"]——
+	// 主 IP 即唯一键），调和引擎据此判定发现记录与存量 CI 的同一性。
 	ReconcileKeys datatypes.JSONType[[]string] `json:"reconcile_keys,omitempty"`
 	CreatedAt     time.Time                    `json:"created_at"`
 	UpdatedAt     time.Time                    `json:"updated_at"`
@@ -60,14 +60,41 @@ type CI struct {
 }
 
 // CIRelation 是 CI 之间的关系实例。
+// (relation_code, src_ci_id, dst_ci_id) 有数据库级唯一约束——人工建联与自动关联器
+// 都按此三元组幂等去重，重复触发不会产生重复关系。
 type CIRelation struct {
 	ID           string    `gorm:"primaryKey;size:36" json:"id"`
-	RelationCode string    `gorm:"size:64;not null;index" json:"relation_code"`
-	SrcCIID      string    `gorm:"size:36;not null;index" json:"src_ci_id"`
-	DstCIID      string    `gorm:"size:36;not null;index" json:"dst_ci_id"`
+	RelationCode string    `gorm:"size:64;not null;index;uniqueIndex:idx_ci_rel_unique" json:"relation_code"`
+	SrcCIID      string    `gorm:"size:36;not null;index;uniqueIndex:idx_ci_rel_unique" json:"src_ci_id"`
+	DstCIID      string    `gorm:"size:36;not null;index;uniqueIndex:idx_ci_rel_unique" json:"dst_ci_id"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
+
+// 告警事件级别。
+const (
+	AlertLevelInfo     = "info"
+	AlertLevelWarning  = "warning"
+	AlertLevelCritical = "critical"
+)
+
+// AlertEvent 是告警事件实体（2B：黑设备等资产风险线索）。
+// 由服务端各检测点写入（如调和引擎发现 black_device_risk 主机），
+// 经 /api/v1/alerts 查询与确认（ack）。
+type AlertEvent struct {
+	ID     string `gorm:"primaryKey;size:36" json:"id"`
+	Level  string `gorm:"size:16;not null;index" json:"level"`  // info/warning/critical
+	Title  string `gorm:"size:256;not null" json:"title"`       // 告警标题
+	Source string `gorm:"size:64;not null;index" json:"source"` // 产生来源（如调和引擎、ipscan）
+	// CIID 为关联 CI（可空，如网段级告警无单一 CI）。
+	CIID         string    `gorm:"size:36;index" json:"ci_id,omitempty"`
+	Detail       string    `gorm:"size:2048" json:"detail"`                          // 详细说明
+	Acknowledged bool      `gorm:"not null;default:false;index" json:"acknowledged"` // 是否已确认
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+// TableName 显式指定表名。
+func (AlertEvent) TableName() string { return "alert_events" }
 
 // DiscoveryRawRecord 是发现记录原始层：保留来源、时间戳与原始报文，
 // 调和结果（动作/命中 CI/说明）也回写在此，便于追溯与重放。
@@ -91,6 +118,9 @@ type PoolItem struct {
 	ModelCode    string            `gorm:"size:64;not null;index" json:"model_code"`
 	Record       datatypes.JSONMap `json:"record"` // 发现记录原文（source/collector/model_candidate/attributes/occurred_at）
 	ConflictCIID string            `gorm:"size:36" json:"conflict_ci_id,omitempty"`
+	// RecordHash 为记录同一性哈希（model_candidate + 调和键值 / 全属性），
+	// 用于「ignore 后同一记录不再入池」的去重判定（D-02）；不对外暴露。
+	RecordHash string `gorm:"size:64;index" json:"-"`
 	// ReconcileAction 为调和判定动作（conflict/pool），供发现池列表展示判定类别。
 	ReconcileAction string    `gorm:"size:16" json:"reconcile_action,omitempty"`
 	Reason          string    `gorm:"size:1024" json:"reason"`              // 判定依据（多条以"；"连接）
@@ -98,6 +128,121 @@ type PoolItem struct {
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
 }
+
+// 凭据类型枚举（F-005）。
+const (
+	CredentialTypeVCenter    = "vcenter"
+	CredentialTypeAliyun     = "aliyun"
+	CredentialTypeVolc       = "volc"
+	CredentialTypeSNMP       = "snmp"
+	CredentialTypeDB         = "db"
+	CredentialTypeKubeconfig = "kubeconfig"
+	CredentialTypeSSHIPMI    = "ssh_ipmi"
+	CredentialTypeN9E        = "n9e"
+	CredentialTypeNetbox     = "netbox"
+)
+
+// CredentialTypes 是全部合法凭据类型。
+var CredentialTypes = []string{
+	CredentialTypeVCenter, CredentialTypeAliyun, CredentialTypeVolc, CredentialTypeSNMP,
+	CredentialTypeDB, CredentialTypeKubeconfig, CredentialTypeSSHIPMI,
+	CredentialTypeN9E, CredentialTypeNetbox,
+}
+
+// Credential 是凭据实体（F-005）：secret 明文绝不落库——
+// SecretCiphertext 存 AES-256-GCM 加密后的 secret JSON（base64 编码），
+// 任何 API 响应均不回传该字段。
+type Credential struct {
+	ID          string `gorm:"primaryKey;size:36" json:"id"`
+	Name        string `gorm:"size:128;not null" json:"name"`
+	Type        string `gorm:"size:32;not null;index" json:"type"` // 见 CredentialTypes
+	Description string `gorm:"size:512" json:"description"`
+	// SecretCiphertext 为密文列：nonce|ciphertext 的 base64；json:"-" 保证不外泄。
+	SecretCiphertext string     `gorm:"type:text;not null" json:"-"`
+	LastRotatedAt    *time.Time `json:"last_rotated_at,omitempty"`
+	UseCount         int64      `gorm:"not null;default:0" json:"use_count"` // 被任务使用次数
+	CreatedAt        time.Time  `json:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
+}
+
+// TableName 显式指定表名。
+func (Credential) TableName() string { return "credentials" }
+
+// 凭据审计动作。
+const (
+	CredentialAuditCreate = "create"
+	CredentialAuditUpdate = "update"
+	CredentialAuditRotate = "rotate"
+	CredentialAuditUse    = "use"
+)
+
+// CredentialAudit 是凭据操作审计：记录操作者、动作与来源（人工操作或任务引用）。
+type CredentialAudit struct {
+	ID           string    `gorm:"primaryKey;size:36" json:"id"`
+	CredentialID string    `gorm:"size:36;not null;index" json:"credential_id"`
+	Action       string    `gorm:"size:16;not null;index" json:"action"` // create/update/rotate/use
+	Operator     string    `gorm:"size:64;not null" json:"operator"`     // 操作者用户名（任务使用场景为 system）
+	Source       string    `gorm:"size:128;not null" json:"source"`      // 来源：manual 或 task:<任务名>
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+// TableName 显式指定表名。
+func (CredentialAudit) TableName() string { return "credential_audits" }
+
+// 采集任务状态。
+const (
+	TaskStatusIdle    = "idle"
+	TaskStatusRunning = "running"
+	TaskStatusError   = "error"
+)
+
+// 采集器类型前缀：builtin:<内置执行器名> 或 exec:<二进制名>。
+const (
+	CollectorTypeBuiltinPrefix = "builtin:"
+	CollectorTypeExecPrefix    = "exec:"
+	// CollectorBuiltinN9E 为内置 n9e 消费器执行器。
+	CollectorBuiltinN9E = "builtin:n9e-consumer"
+)
+
+// DiscoveryTask 是采集任务实体（F-033）：由调度器按 interval_seconds 周期执行，
+// 也可经 POST /discovery/tasks/{id}/run 手动触发。
+type DiscoveryTask struct {
+	ID              string            `gorm:"primaryKey;size:36" json:"id"`
+	Name            string            `gorm:"size:128;not null" json:"name"`
+	CollectorType   string            `gorm:"size:64;not null" json:"collector_type"` // builtin:* / exec:*
+	CredentialID    *string           `gorm:"size:36" json:"credential_id,omitempty"`
+	IntervalSeconds int               `gorm:"not null;default:300" json:"interval_seconds"`
+	Enabled         bool              `gorm:"not null;default:false" json:"enabled"`
+	Config          datatypes.JSONMap `json:"config"` // 执行器配置（api_url/binary/args/env/timeout_seconds 等）
+	Status          string            `gorm:"size:16;not null;default:idle;index" json:"status"`
+	LastRunAt       *time.Time        `json:"last_run_at,omitempty"`
+	LastSuccessAt   *time.Time        `json:"last_success_at,omitempty"`
+	LastError       string            `gorm:"size:1024" json:"last_error,omitempty"` // 截断存储
+	RunCount        int64             `gorm:"not null;default:0" json:"run_count"`
+	FailCount       int64             `gorm:"not null;default:0" json:"fail_count"`
+	CreatedAt       time.Time         `json:"created_at"`
+	UpdatedAt       time.Time         `json:"updated_at"`
+}
+
+// TableName 显式指定表名。
+func (DiscoveryTask) TableName() string { return "discovery_tasks" }
+
+// DiscoveryTaskRun 是一次任务执行记录：含产出条数、成败与输出尾巴（截断 4KB）。
+type DiscoveryTaskRun struct {
+	ID           string     `gorm:"primaryKey;size:36" json:"id"`
+	TaskID       string     `gorm:"size:36;not null;index" json:"task_id"`
+	Trigger      string     `gorm:"size:16;not null" json:"trigger"` // schedule/manual
+	StartedAt    time.Time  `json:"started_at"`
+	FinishedAt   *time.Time `json:"finished_at,omitempty"`
+	Success      bool       `gorm:"not null;default:false" json:"success"`
+	Produced     int        `gorm:"not null;default:0" json:"produced"` // 摄入接受的发现记录条数
+	ErrorSummary string     `gorm:"size:1024" json:"error_summary,omitempty"`
+	// Output 为 stdout/stderr 合并输出的尾部（截断 4KB），仅 exec 执行器有值。
+	Output string `gorm:"size:4096" json:"output,omitempty"`
+}
+
+// TableName 显式指定表名。
+func (DiscoveryTaskRun) TableName() string { return "discovery_task_runs" }
 
 // User 是系统用户实体（认证主体）。密码只存 bcrypt 哈希，永不外泄。
 type User struct {
@@ -197,6 +342,11 @@ func AllModels() []any {
 		&RackMount{},
 		&User{},
 		&Role{},
+		&Credential{},
+		&CredentialAudit{},
+		&DiscoveryTask{},
+		&DiscoveryTaskRun{},
+		&AlertEvent{},
 	}
 }
 
@@ -212,6 +362,11 @@ func (a *IPAddress) BeforeCreate(_ *gorm.DB) error          { return ensureID(&a
 func (m *RackMount) BeforeCreate(_ *gorm.DB) error          { return ensureID(&m.ID) }
 func (u *User) BeforeCreate(_ *gorm.DB) error               { return ensureID(&u.ID) }
 func (r *Role) BeforeCreate(_ *gorm.DB) error               { return ensureID(&r.ID) }
+func (c *Credential) BeforeCreate(_ *gorm.DB) error         { return ensureID(&c.ID) }
+func (a *CredentialAudit) BeforeCreate(_ *gorm.DB) error    { return ensureID(&a.ID) }
+func (t *DiscoveryTask) BeforeCreate(_ *gorm.DB) error      { return ensureID(&t.ID) }
+func (r *DiscoveryTaskRun) BeforeCreate(_ *gorm.DB) error   { return ensureID(&r.ID) }
+func (a *AlertEvent) BeforeCreate(_ *gorm.DB) error         { return ensureID(&a.ID) }
 
 // ensureID 在主键为空时生成新 UUID。
 func ensureID(id *string) error {
