@@ -79,7 +79,7 @@ cd migrator && go run ./cmd/migrate        # NetBox → CMDB 迁移，需 NETBOX
 
 ```bash
 bash scripts/demo.sh          # 无需 Docker：SQLite 临时库 + 种子模型 + 样例发现记录，结束自动清理
-bash scripts/seed-models.sh   # 向运行中的 server（默认 :8080）导入八层种子模型（定义见 scripts/seed/）
+bash scripts/seed-models.sh   # 向运行中的 server（默认 :8080）导入 13 个种子模型（定义见 scripts/seed/）
 ```
 
 脚本统一先经 `scripts/auth-login.sh` 登录；可用 `MERIDIAN_AUTH_USER` / `MERIDIAN_AUTH_PASSWORD` 覆盖账号。

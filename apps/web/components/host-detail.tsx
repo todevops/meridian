@@ -11,6 +11,7 @@ import {
   Clock3 as Clock3Icon,
 } from "lucide-react"
 
+import { N9EPanel } from "@/components/n9e-panel"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@workspace/ui/components/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -162,6 +163,8 @@ export function HostDetail({ id }: { id: string }) {
   }
 
   const title = pickAttr(ci.attributes, PEER_NAME_CODES)
+  // n9e 面板标识：取 CI attributes.ident，缺失时面板自身降级为未配置占位
+  const ident = attrText(ci.attributes.ident)
 
   return (
     <div className="flex w-full flex-col gap-5 p-6">
@@ -207,6 +210,9 @@ export function HostDetail({ id }: { id: string }) {
           </CardContent>
         </Card>
       ))}
+
+      {/* n9e 监控嵌入面板（监控视图 + 当前告警） */}
+      <N9EPanel ident={ident === "—" ? "" : ident} />
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         {/* 关系面板 */}

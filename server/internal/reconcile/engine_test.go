@@ -637,3 +637,27 @@ func TestIgnoredRecordNotRePooledWithoutKeys(t *testing.T) {
 		t.Fatalf("不同记录应正常入 pending，实际 %d", got)
 	}
 }
+
+// 来源优先级表的键必须等于采集器实际发送的 Source 值（collectors 各包 Source 常量），
+// 死键/错键会让对应来源静默落到默认分——本测试钉住这张表。
+func TestSourcePrioritiesMatchCollectorKeys(t *testing.T) {
+	want := map[string]int{
+		"manual":  100,
+		"n9e":     80,
+		"vsphere": 70,
+		"aliyun":  70,
+		"volc":    70, // 采集器发送 "volc"，不是 "volcengine"
+		"ip_scan": 60, // 采集器发送 "ip_scan"，不是 "nmap"
+	}
+	for source, p := range want {
+		if got := PriorityOf(source); got != p {
+			t.Errorf("PriorityOf(%q) = %d, 期望 %d", source, got, p)
+		}
+	}
+	// 未建模的来源落默认分。
+	for _, source := range []string{"librenms", "tsdb", "unknown"} {
+		if got := PriorityOf(source); got != defaultSourcePriority {
+			t.Errorf("PriorityOf(%q) = %d, 期望默认 %d", source, got, defaultSourcePriority)
+		}
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"math/big"
 	"net/netip"
 	"strings"
@@ -464,4 +465,39 @@ func (s *Service) PatchIP(ctx context.Context, id string, in PatchIPInput) (stor
 		return store.IPAddress{}, fmt.Errorf("重新加载 IP 失败: %w", err)
 	}
 	return ip, nil
+}
+
+// RelinkCI 维护 CI 与 IPAM 地址登记（ip_addresses.ci_id）的关联，供调和等
+// 写路径在自身事务内调用：IP 变更时先解除旧 IP 对本 CI 的挂载，再把新 IP 的
+// 登记记录挂到 CI 上。只挂接已登记的 IP，不为未登记 IP 自动创建条目（登记权在 IPAM）。
+// 重叠前缀/多 VRF 下同 IP 会命中多条登记记录，此时无法判定 CI 属于哪个前缀，
+// 跳过挂接并告警（一条也不挂），绝不批量改挂。
+func RelinkCI(tx *gorm.DB, ciID, oldIP, newIP string) error {
+	if oldIP != "" && oldIP != newIP {
+		if err := tx.Model(&store.IPAddress{}).
+			Where("ip = ? AND ci_id = ?", oldIP, ciID).
+			Update("ci_id", "").Error; err != nil {
+			return fmt.Errorf("解除旧 IP %s 的 IPAM 关联失败: %w", oldIP, err)
+		}
+	}
+	if newIP == "" {
+		return nil
+	}
+	var rows []store.IPAddress
+	if err := tx.Where("ip = ?", newIP).Find(&rows).Error; err != nil {
+		return fmt.Errorf("查询 IP %s 的登记记录失败: %w", newIP, err)
+	}
+	switch len(rows) {
+	case 0:
+		// 未登记，不自动创建。
+	case 1:
+		if err := tx.Model(&store.IPAddress{}).
+			Where("id = ?", rows[0].ID).
+			Update("ci_id", ciID).Error; err != nil {
+			return fmt.Errorf("建立 IP %s 的 IPAM 关联失败: %w", newIP, err)
+		}
+	default:
+		log.Printf("IP %s 在 %d 个前缀下有登记记录，无法判定归属，跳过 CI %s 的 IPAM 挂接", newIP, len(rows), ciID)
+	}
+	return nil
 }

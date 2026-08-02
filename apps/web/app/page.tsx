@@ -249,14 +249,14 @@ export default function Page() {
   return (
     <div className="flex w-full flex-col gap-6 p-6">
       <header className="flex flex-col items-center gap-4 pt-8 text-center">
-        <h1 className="text-2xl font-semibold">CMDB 配置管理中心</h1>
+        <h1 className="text-xl font-semibold">CMDB 配置管理中心</h1>
         <p className="text-xs text-muted-foreground">
           全局搜索模型、CI 实例、IPAM 地址与机房机柜
         </p>
         <div className="relative w-full max-w-xl">
           <SearchIcon className="absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            className="h-11 rounded-full pl-10 text-base shadow-sm"
+            className="h-11 rounded-full pl-10 text-sm shadow-sm"
             placeholder="搜索主机名、IP、序列号、机柜、模型…"
             autoFocus
             value={input}
@@ -287,7 +287,7 @@ export default function Page() {
                   <Link key={card.href} href={card.href} className="group">
                     <Card className="h-full transition-colors group-hover:border-primary/50">
                       <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
+                        <CardTitle className="flex items-center gap-2 text-sm">
                           <card.icon className="size-4 text-muted-foreground transition-colors group-hover:text-primary" />
                           {card.title}
                         </CardTitle>
@@ -309,7 +309,7 @@ export default function Page() {
               {PLANNED_CARDS.map((card) => (
                 <Card key={card.title} className="h-full border-dashed opacity-75">
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
+                    <CardTitle className="flex items-center gap-2 text-sm">
                       <card.icon className="size-4 text-muted-foreground" />
                       {card.title}
                       <Badge variant="secondary" className="ml-auto">
@@ -352,7 +352,7 @@ export default function Page() {
                 className="flex items-baseline justify-between gap-4 rounded-lg border px-4 py-2.5 transition-colors hover:border-primary/50 hover:bg-muted/40"
               >
                 <div className="flex min-w-0 items-baseline gap-3">
-                  <span className="shrink-0 font-medium">{item.title}</span>
+                  <span className="shrink-0 text-sm font-medium">{item.title}</span>
                   <span className="truncate text-xs text-muted-foreground">
                     {item.subtitle}
                   </span>

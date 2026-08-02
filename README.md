@@ -105,7 +105,7 @@ source ../.tools/env.sh
 bash scripts/demo.sh
 ```
 
-`demo.sh` 依次完成：构建并启动 server（`DB_SQLITE_PATH` 指向临时文件）→ 等待 `/healthz` 就绪 → 调用 `scripts/seed-models.sh` 导入八层种子模型 → 逐条 POST 三条样例发现记录（新主机建档 / 同 ident 更新 / 同 IP 不同 ident 冲突入池）→ 查询并打印主机 CI 清单 → 停止 server 并清理临时目录。
+`demo.sh` 依次完成：构建并启动 server（`DB_SQLITE_PATH` 指向临时文件）→ 等待 `/healthz` 就绪 → 调用 `scripts/seed-models.sh` 导入 13 个种子模型 → 逐条 POST 三条样例发现记录（新主机建档 / 同 ident 更新 / 同 IP 不同 ident 冲突入池）→ 查询并打印主机 CI 清单 → 停止 server 并清理临时目录。
 
 手工体验（server 与 web 分别启动）：
 

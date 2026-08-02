@@ -2,6 +2,7 @@
 // permission 为菜单项可见所需权限点；badge="pool-pending" 表示展示发现池待处理数徽标。
 
 import {
+  AppWindow as AppWindowIcon,
   BellRing as BellRingIcon,
   Boxes as BoxesIcon,
   Building2 as Building2Icon,
@@ -30,8 +31,6 @@ export interface NavItemDef {
   badge?: "pool-pending" | "alerts-unacked"
   /** 是否仅在精确匹配时高亮（如 /） */
   exact?: boolean
-  /** 规划中的占位入口 */
-  planned?: boolean
 }
 
 export interface NavGroupDef {
@@ -54,6 +53,7 @@ export const NAV_GROUPS: NavGroupDef[] = [
     label: "资产管理",
     items: [
       { href: "/hosts", label: "主机", icon: ServerIcon },
+      { href: "/applications", label: "应用归属", icon: AppWindowIcon },
       { href: "/virtualization", label: "虚拟化", icon: LayersIcon },
       { href: "/cloud", label: "云资源", icon: CloudIcon },
       { href: "/network/devices", label: "网络设备", icon: CableIcon },

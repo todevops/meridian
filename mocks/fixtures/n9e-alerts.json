@@ -1,0 +1,48 @@
+[
+  {
+    "id": 9001,
+    "cate": "prometheus",
+    "datasource_id": 1,
+    "group_id": 12,
+    "group_name": "电商前台",
+    "rule_id": 31,
+    "rule_name": "CPU 使用率过高",
+    "severity": 2,
+    "trigger": "cpu_usage_active > 90",
+    "prom_ql": "cpu_usage_active{ident=\"web-dup\"} > 90",
+    "first_trigger_time": 1785496400,
+    "trigger_time": 1785499800,
+    "trigger_value": "97.3",
+    "target_ident": "web-dup",
+    "target_note": "电商前台 Web 节点 A（categraf 上报）",
+    "tags": [
+      "role=web",
+      "app=mall-front"
+    ],
+    "status": "firing",
+    "notify_cur_number": 0
+  },
+  {
+    "id": 9002,
+    "cate": "prometheus",
+    "datasource_id": 1,
+    "group_id": 14,
+    "group_name": "订单中台",
+    "rule_id": 45,
+    "rule_name": "主机心跳失联",
+    "severity": 1,
+    "trigger": "target_up == 0 持续 10m",
+    "prom_ql": "time() - max(timestamp(categraf_uptime{ident=\"db-mysql-01\"})) by (ident) > 600",
+    "first_trigger_time": 1785492800,
+    "trigger_time": 1785499900,
+    "trigger_value": "777600",
+    "target_ident": "db-mysql-01",
+    "target_note": "MySQL 主库（心跳已停滞 9 天，演示疑似下线核查）",
+    "tags": [
+      "role=db",
+      "app=mall-order"
+    ],
+    "status": "firing",
+    "notify_cur_number": 3
+  }
+]

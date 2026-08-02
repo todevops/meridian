@@ -163,6 +163,80 @@ func (c *Client) EnsureModel(ctx context.Context, def ModelDefinition) (created 
 	return true, nil
 }
 
+// listEnvelope 为 CMDB 列表接口的统一分页信封（{items,total,page,page_size}）。
+type listEnvelope[T any] struct {
+	Items    []T `json:"items"`
+	Total    int `json:"total"`
+	Page     int `json:"page"`
+	PageSize int `json:"page_size"`
+}
+
+// listPageSize 为单页拉取大小（server 上限 200）。
+const listPageSize = 200
+
+// ListCIs 按模型编码分页拉取全部 CI（verify 对账用）。
+func (c *Client) ListCIs(ctx context.Context, modelCode string) ([]CI, error) {
+	var all []CI
+	for page := 1; ; page++ {
+		var env listEnvelope[CI]
+		path := fmt.Sprintf("/api/v1/cis?model_id=%s&page=%d&page_size=%d", modelCode, page, listPageSize)
+		if err := c.do(ctx, http.MethodGet, path, nil, &env); err != nil {
+			return nil, fmt.Errorf("拉取模型 %q 的 CI 列表失败: %w", modelCode, err)
+		}
+		all = append(all, env.Items...)
+		if len(all) >= env.Total || len(env.Items) == 0 {
+			return all, nil
+		}
+	}
+}
+
+// PrefixEntry 为 IPAM 前缀列表项（verify 按 cidr 对账用）。
+type PrefixEntry struct {
+	ID   string `json:"id"`
+	CIDR string `json:"cidr"`
+	Name string `json:"name"`
+}
+
+// ListPrefixes 分页拉取全部 IPAM 前缀。
+func (c *Client) ListPrefixes(ctx context.Context) ([]PrefixEntry, error) {
+	var all []PrefixEntry
+	for page := 1; ; page++ {
+		var env listEnvelope[PrefixEntry]
+		path := fmt.Sprintf("/api/v1/ipam/prefixes?page=%d&page_size=%d", page, listPageSize)
+		if err := c.do(ctx, http.MethodGet, path, nil, &env); err != nil {
+			return nil, fmt.Errorf("拉取 IPAM 前缀列表失败: %w", err)
+		}
+		all = append(all, env.Items...)
+		if len(all) >= env.Total || len(env.Items) == 0 {
+			return all, nil
+		}
+	}
+}
+
+// IPEntry 为 IPAM IP 列表项（verify 按 address 对账用）。
+type IPEntry struct {
+	ID       string `json:"id"`
+	PrefixID string `json:"prefix_id"`
+	IP       string `json:"ip"`
+	Status   string `json:"status"`
+}
+
+// ListIPs 分页拉取全部 IPAM IP 地址。
+func (c *Client) ListIPs(ctx context.Context) ([]IPEntry, error) {
+	var all []IPEntry
+	for page := 1; ; page++ {
+		var env listEnvelope[IPEntry]
+		path := fmt.Sprintf("/api/v1/ipam/ips?page=%d&page_size=%d", page, listPageSize)
+		if err := c.do(ctx, http.MethodGet, path, nil, &env); err != nil {
+			return nil, fmt.Errorf("拉取 IPAM IP 列表失败: %w", err)
+		}
+		all = append(all, env.Items...)
+		if len(all) >= env.Total || len(env.Items) == 0 {
+			return all, nil
+		}
+	}
+}
+
 // CreateCI 创建 CI（status=active，source=netbox-migration），返回建档后的 CI。
 func (c *Client) CreateCI(ctx context.Context, modelCode string, attributes map[string]any) (CI, error) {
 	reqBody := map[string]any{

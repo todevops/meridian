@@ -1,6 +1,6 @@
 "use client"
 
-// 网络设备台账：厂商筛选 + 关键字搜索，行点击开详情抽屉（属性 + 关系 + Oxidized 备份占位卡）
+// 网络设备台账：厂商筛选 + 关键字搜索，行点击开详情抽屉（属性 + 关系 + 配置备份卡 + n9e 面板）
 // 设备 CI 由 SNMP（LibreNMS 旁路）采集经发现池确认建档，主键 serial_no > mgmt_ip
 
 import { useCallback, useEffect, useMemo, useState } from "react"
@@ -16,13 +16,6 @@ import { Search as SearchIcon } from "lucide-react"
 
 import { Button } from "@workspace/ui/components/button"
 import { Badge } from "@/components/ui/badge"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -41,10 +34,12 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { CIDetailDrawer } from "@/components/ci-detail-drawer"
+import { ConfigBackupCard } from "@/components/config-backup-card"
+import { N9EPanel } from "@/components/n9e-panel"
 import type { CI, CIStatus } from "@/lib/api"
 import { listAllCIs, resolveModelId } from "@/lib/cis"
 import { CI_STATUS_LABELS } from "@/lib/labels"
-import { pickAttr } from "@/lib/format"
+import { attrText, pickAttr } from "@/lib/format"
 
 const PAGE_SIZE = 20
 const ALL_VENDORS = "__all__"
@@ -306,20 +301,19 @@ export default function NetworkDevicesPage() {
           if (!open) setSelected(null)
         }}
         extra={
-          // Oxidized 备份元数据占位：2C 联调后展示备份状态与变更事件（备份原文不入库）
-          <Card className="border-dashed">
-            <CardHeader>
-              <CardTitle className="text-xs">Oxidized 配置备份</CardTitle>
-              <CardDescription>
-                备份状态、最近备份时间与配置变更事件
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-muted-foreground">
-                备份元数据将在迭代 2C 与 Oxidized 联调后展示（备份原文不入库）。
-              </p>
-            </CardContent>
-          </Card>
+          selected ? (
+            <>
+              {/* 配置备份元数据（Oxidized webhook 回写，原文不入库） */}
+              <ConfigBackupCard ci={selected} />
+              {/* n9e 监控嵌入面板，ident 取设备 name */}
+              <N9EPanel
+                ident={(() => {
+                  const name = attrText(selected.attributes.name)
+                  return name === "—" ? "" : name
+                })()}
+              />
+            </>
+          ) : null
         }
       />
     </div>

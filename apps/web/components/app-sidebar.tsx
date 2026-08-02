@@ -180,13 +180,13 @@ export function AppSidebar() {
                 onClick={() => toggleGroup(group.key)}
                 aria-expanded={!isCollapsed}
                 className={cn(
-                  "mt-2 flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors hover:text-foreground",
-                  groupActive ? "text-foreground" : "text-muted-foreground/70"
+                  "mt-2 flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium transition-colors hover:text-foreground",
+                  groupActive ? "text-foreground" : "text-muted-foreground"
                 )}
               >
                 <ChevronRightIcon
                   className={cn(
-                    "size-3.5 transition-transform",
+                    "size-4 transition-transform",
                     !isCollapsed && "rotate-90"
                   )}
                 />
@@ -207,11 +207,6 @@ export function AppSidebar() {
                   >
                     <item.icon className="size-4 shrink-0" />
                     <span className="truncate">{item.label}</span>
-                    {item.planned && (
-                      <span className="ml-auto text-xs text-muted-foreground/60">
-                        规划中
-                      </span>
-                    )}
                     {renderBadge(item)}
                   </Link>
                 ))}

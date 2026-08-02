@@ -17,6 +17,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/netip"
@@ -27,6 +28,7 @@ import (
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
+	"meridian/server/internal/ipam"
 	"meridian/server/internal/store"
 	"meridian/server/internal/validation"
 )
@@ -64,13 +66,14 @@ type Decision struct {
 
 // sourcePriorities 为来源优先级表（数值越大越权威）。
 // 人工维护的数据最权威，采集器按可信度递减；未列出的来源取默认值。
+// 键名必须等于采集器实际发送的 Source 值（collectors 各包 Source 常量）。
 var sourcePriorities = map[string]int{
-	"manual":     100,
-	"n9e":        80,
-	"vsphere":    70,
-	"aliyun":     70,
-	"volcengine": 70,
-	"nmap":       60,
+	"manual":  100,
+	"n9e":     80,
+	"vsphere": 70,
+	"aliyun":  70,
+	"volc":    70,
+	"ip_scan": 60,
 }
 
 const defaultSourcePriority = 50
@@ -133,7 +136,7 @@ func (e *Engine) Evaluate(ctx context.Context, rec Record, dryRun bool) (Decisio
 	// 1. 解析候选模型。
 	var model store.Model
 	if err := e.db.WithContext(ctx).Where("code = ?", rec.ModelCandidate).First(&model).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			d := Decision{
 				Action:  ActionPool,
 				Reasons: []string{fmt.Sprintf("候选模型 %q 不存在，记录转入发现池", rec.ModelCandidate)},
@@ -293,7 +296,7 @@ func (e *Engine) createCI(ctx context.Context, rec Record, model store.Model, ke
 			return fmt.Errorf("创建 CI 失败: %w", err)
 		}
 		if ip := normalizeIP(rec.Attributes["ip"]); ip != "" {
-			if err := syncIPAMLink(tx, ci.ID, "", ip); err != nil {
+			if err := ipam.RelinkCI(tx, ci.ID, "", ip); err != nil {
 				return err
 			}
 		}
@@ -378,7 +381,7 @@ func (e *Engine) updateCI(ctx context.Context, rec Record, model store.Model, ci
 			Updates(map[string]any{"attributes": ci.Attributes, "field_sources": ci.FieldSources}).Error; err != nil {
 			return fmt.Errorf("更新 CI 失败: %w", err)
 		}
-		if err := syncIPAMLink(tx, ci.ID, oldIP, newIP); err != nil {
+		if err := ipam.RelinkCI(tx, ci.ID, oldIP, newIP); err != nil {
 			return err
 		}
 		return writeAudit(tx, ci.ID, "update", rec.Source, changes, "调和更新 CI 属性")
@@ -511,28 +514,6 @@ func recordHash(rec Record, keys []string) string {
 		h.Write(b)
 	}
 	return hex.EncodeToString(h.Sum(nil))
-}
-
-// syncIPAMLink 维护主机 CI 与 IPAM 地址记录（ip_addresses.ci_id）的关联：
-// 主 IP 是主机的唯一键，IPAM 是该 IP 的登记权威源——调和建档/更新后把匹配
-// IP 的登记记录挂到 CI 上；IP 变更时先解除旧 IP 对本 CI 的挂载。
-// 只挂接已登记的 IP 记录，不为未登记 IP 自动创建 IPAM 条目（登记权在 IPAM）。
-func syncIPAMLink(tx *gorm.DB, ciID, oldIP, newIP string) error {
-	if oldIP != "" && oldIP != newIP {
-		if err := tx.Model(&store.IPAddress{}).
-			Where("ip = ? AND ci_id = ?", oldIP, ciID).
-			Update("ci_id", "").Error; err != nil {
-			return fmt.Errorf("解除旧 IP %s 的 IPAM 关联失败: %w", oldIP, err)
-		}
-	}
-	if newIP != "" {
-		if err := tx.Model(&store.IPAddress{}).
-			Where("ip = ?", newIP).
-			Update("ci_id", ciID).Error; err != nil {
-			return fmt.Errorf("建立 IP %s 的 IPAM 关联失败: %w", newIP, err)
-		}
-	}
-	return nil
 }
 
 // normalizeIP 把属性值归一化为 netip 字符串形式（与 IPAM 存储口径一致）；

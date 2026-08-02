@@ -4,6 +4,7 @@ package httpapi
 import (
 	"errors"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -35,6 +36,8 @@ type Server struct {
 	dcim       *dcim.Service
 	credCipher *credentials.Cipher
 	scheduler  *scheduler.Scheduler
+	// oxidizedToken 为 Oxidized webhook 共享密钥（env OXIDIZED_WEBHOOK_TOKEN，默认 dev-oxidized-token）。
+	oxidizedToken string
 }
 
 // NewRouter 构建完整路由（健康检查 + /api/v1 业务接口）。
@@ -42,13 +45,14 @@ type Server struct {
 // 业务接口按权限点鉴权（权限点目录见 auth 包 catalog）。
 func NewRouter(db *gorm.DB, pipeline *discovery.Pipeline, authSvc *auth.Service, credCipher *credentials.Cipher, sched *scheduler.Scheduler) *gin.Engine {
 	s := &Server{
-		db:         db,
-		pipeline:   pipeline,
-		auth:       authSvc,
-		ipam:       ipam.NewService(db),
-		dcim:       dcim.NewService(db),
-		credCipher: credCipher,
-		scheduler:  sched,
+		db:            db,
+		pipeline:      pipeline,
+		auth:          authSvc,
+		ipam:          ipam.NewService(db),
+		dcim:          dcim.NewService(db),
+		credCipher:    credCipher,
+		scheduler:     sched,
+		oxidizedToken: defaultStringEnv("OXIDIZED_WEBHOOK_TOKEN", "dev-oxidized-token"),
 	}
 
 	r := gin.Default()
@@ -70,6 +74,8 @@ func NewRouter(db *gorm.DB, pipeline *discovery.Pipeline, authSvc *auth.Service,
 	v1 := r.Group("/api/v1")
 	// 登录是唯一无需认证的接口。
 	v1.POST("/auth/login", s.login)
+	// Oxidized 事件回写（F-062）：不走会话，处理器内校验 X-Oxidized-Token 共享密钥。
+	v1.POST("/integrations/oxidized/events", s.handleOxidizedEvent)
 
 	authed := v1.Group("", authSvc.AuthRequired())
 	{
@@ -127,6 +133,14 @@ func NewRouter(db *gorm.DB, pipeline *discovery.Pipeline, authSvc *auth.Service,
 		authed.POST("/dcim/racks/:ci_id/unmount", s.require("dcim:write"), s.unmountRackUnit)
 
 		authed.GET("/integrations/oxidized/devices", s.require("ci:read"), s.listOxidizedDevices)
+
+		// n9e 集成：上行回写（F-070）与嵌入代理（F-063）。
+		authed.POST("/integrations/n9e/writeback", s.require("ci:write"), s.handleN9EWriteback)
+		authed.GET("/integrations/n9e/dashboard-url", s.require("ci:read"), s.handleN9EDashboardURL)
+		authed.GET("/integrations/n9e/alerts", s.require("ci:read"), s.handleN9EAlerts)
+
+		// 应用归属引擎（F-028）：按规则把 host 挂接到 biz_app。
+		authed.POST("/attribution/run", s.require("ci:write"), s.handleAttributionRun)
 
 		// 告警事件（2B）：黑设备等风险线索的查询与确认。
 		authed.GET("/alerts", s.require("alert:read"), s.listAlerts)
@@ -194,4 +208,12 @@ func stringSlice(s []string) []string {
 		return []string{}
 	}
 	return s
+}
+
+// defaultStringEnv 读取环境变量，未设置时返回默认值。
+func defaultStringEnv(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
 }

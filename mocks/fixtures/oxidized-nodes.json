@@ -1,0 +1,26 @@
+[
+  {
+    "name": "bj-core-sw-01",
+    "ip": "10.30.0.2",
+    "model": "CE6857-48S6CQ-EI",
+    "group": "default",
+    "status": "success",
+    "time": 1785499000
+  },
+  {
+    "name": "bj-core-sw-02",
+    "ip": "10.30.0.3",
+    "model": "S6520X-30QC-EI",
+    "group": "default",
+    "status": "success",
+    "time": 1785499300
+  },
+  {
+    "name": "bj-acc-sw-01",
+    "ip": "10.30.0.5",
+    "model": "RG-S6120-20XS4VS2QXS",
+    "group": "default",
+    "status": "success",
+    "time": 1785499600
+  }
+]

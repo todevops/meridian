@@ -202,6 +202,19 @@ func (f *fakeCMDB) handler() http.Handler {
 		_ = json.NewEncoder(w).Encode(result)
 	})
 	mux.HandleFunc("/api/v1/cis", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			// GET 列表（verify 对账用）：model_id 过滤 + 统一分页信封。
+			items := []map[string]any{}
+			for _, ci := range f.cis {
+				if mf := r.URL.Query().Get("model_id"); mf == "" || ci["model_code"] == mf {
+					items = append(items, ci)
+				}
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": items, "total": len(items), "page": 1, "page_size": len(items),
+			})
+			return
+		}
 		var body struct {
 			ModelID    string         `json:"model_id"`
 			Attributes map[string]any `json:"attributes"`
@@ -270,6 +283,16 @@ func (f *fakeCMDB) handler() http.Handler {
 		_ = json.NewEncoder(w).Encode(ci)
 	})
 	mux.HandleFunc("/api/v1/ipam/prefixes", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			items := []map[string]any{}
+			for _, p := range f.prefixes {
+				items = append(items, map[string]any{"id": p.ID, "cidr": p.CIDR, "name": p.Name})
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": items, "total": len(items), "page": 1, "page_size": len(items),
+			})
+			return
+		}
 		var body cmdb.PrefixCreateRequest
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		p, err := netip.ParsePrefix(body.CIDR)
@@ -305,6 +328,18 @@ func (f *fakeCMDB) handler() http.Handler {
 		})
 	})
 	mux.HandleFunc("/api/v1/ipam/ips", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			items := []map[string]any{}
+			for _, ip := range f.ips {
+				items = append(items, map[string]any{
+					"id": ip.ID, "prefix_id": ip.PrefixID, "ip": ip.IP, "status": ip.Status,
+				})
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": items, "total": len(items), "page": 1, "page_size": len(items),
+			})
+			return
+		}
 		var body cmdb.IPCreateRequest
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		addr, err := netip.ParseAddr(body.IP)

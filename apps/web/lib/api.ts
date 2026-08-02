@@ -1086,3 +1086,31 @@ export function ackAlert(alertId: string): Promise<AlertEvent> {
     method: "POST",
   })
 }
+
+// ---------- n9e 集成（监控视图与当前告警，时序数据不入主库） ----------
+
+/** n9e 监控视图地址响应 */
+export interface N9EDashboardURLResponse {
+  url: string
+}
+
+/** n9e 原始告警条目（字段名与 n9e API 一致，仅消费展示所需字段，其余原样保留） */
+export interface N9EAlertItem {
+  severity?: string | number
+  trigger?: string
+  /** 首次触发时间（n9e 返回 unix 秒，兼容字符串/ISO） */
+  first_trigger_time?: number | string
+  [key: string]: unknown
+}
+
+export function getN9EDashboardURL(ident: string): Promise<N9EDashboardURLResponse> {
+  return request<N9EDashboardURLResponse>("/v1/integrations/n9e/dashboard-url", {
+    query: { ident },
+  })
+}
+
+export function listN9EAlerts(ident: string): Promise<N9EAlertItem[]> {
+  return request<N9EAlertItem[]>("/v1/integrations/n9e/alerts", {
+    query: { ident },
+  })
+}

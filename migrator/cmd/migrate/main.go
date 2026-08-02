@@ -3,7 +3,8 @@
 // 命令行参数：
 //
 //	-mode       迁移模式：direct（默认，直连 CI/IPAM 接口）/ pipeline
-//	            （五类实体翻译为标准发现记录经摄入管道上报，IPAM 仍走 direct）
+//	            （五类实体翻译为标准发现记录经摄入管道上报，IPAM 仍走 direct）/
+//	            verify（双轨对账：重拉 NetBox 七类实体与 CMDB 比对，只读不写入）
 //	-batch      管道模式每批上报记录数（默认 300，范围 200-500）
 //	-rate       管道模式上报限速（条/秒，默认 50）
 //	-max-retry  管道模式 429/5xx 指数退避最大重试次数（默认 5，退避 1s/2s/4s/8s 封顶）
@@ -16,9 +17,10 @@
 //	MERIDIAN_TOKEN      CMDB Bearer 令牌（可选；与账号密码二选一）
 //	MERIDIAN_USERNAME   CMDB 登录账号（可选，需与 MERIDIAN_PASSWORD 成对；服务端启用认证时使用）
 //	MERIDIAN_PASSWORD   CMDB 登录密码（可选）
-//	REPORT_PATH     迁移报告输出路径（默认 ./migration-report.json）
+//	REPORT_PATH     报告输出路径（默认迁移模式 ./migration-report.json，verify 模式 ./verify-report.json）
 //
-// 退出码：0 = 迁移跑完（单条失败见报告）；1 = 致命错误（配置缺失/登录失败/模型确保失败/报告写入失败）。
+// 退出码：迁移模式 0 = 跑完（单条失败见报告）；verify 模式 0 = 总一致率 100%、2 = 不一致；
+// 1 = 致命错误（配置缺失/登录失败/模型确保失败/报告写入失败）。
 package main
 
 import (
@@ -36,14 +38,14 @@ import (
 )
 
 func main() {
-	mode := flag.String("mode", migrate.ModeDirect, "迁移模式：direct / pipeline")
+	mode := flag.String("mode", migrate.ModeDirect, "迁移模式：direct / pipeline / verify")
 	batch := flag.Int("batch", migrate.DefaultBatchSize, "管道模式每批上报记录数（200-500）")
 	rate := flag.Float64("rate", migrate.DefaultRate, "管道模式上报限速（条/秒）")
 	maxRetry := flag.Int("max-retry", migrate.DefaultMaxRetry, "管道模式 429/5xx 最大重试次数")
 	flag.Parse()
 
-	if *mode != migrate.ModeDirect && *mode != migrate.ModePipeline {
-		log.Fatalf("非法 -mode %q：仅支持 direct / pipeline", *mode)
+	if *mode != migrate.ModeDirect && *mode != migrate.ModePipeline && *mode != migrate.ModeVerify {
+		log.Fatalf("非法 -mode %q：仅支持 direct / pipeline / verify", *mode)
 	}
 	opts := migrate.Options{
 		Mode:      *mode,
@@ -56,6 +58,9 @@ func main() {
 	netboxToken := os.Getenv("NETBOX_TOKEN")
 	cmdbURL := getEnv("MERIDIAN_API_URL", "http://localhost:8081")
 	reportPath := getEnv("REPORT_PATH", "./migration-report.json")
+	if *mode == migrate.ModeVerify && os.Getenv("REPORT_PATH") == "" {
+		reportPath = "./verify-report.json"
+	}
 
 	if netboxURL == "" || netboxToken == "" {
 		log.Fatal("缺少必填环境变量：NETBOX_API_URL 与 NETBOX_TOKEN 均不能为空")
@@ -73,6 +78,12 @@ func main() {
 			log.Fatalf("CMDB 认证失败: %v", err)
 		}
 		log.Printf("CMDB 登录成功（账号 %s）", user)
+	}
+
+	// verify 模式：只读对账，不写 CMDB；一致率 100% 退出 0，否则退出 2。
+	if *mode == migrate.ModeVerify {
+		runVerify(ctx, netboxURL, netboxToken, cmdbURL, reportPath, cmClient)
+		return
 	}
 
 	log.Printf("开始迁移：NetBox=%s → CMDB=%s（mode=%s）", netboxURL, cmdbURL, opts.Mode)
@@ -105,4 +116,25 @@ func getEnv(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// runVerify 执行双轨对账并落盘报告；一致率 100% 退出 0，否则退出 2。
+func runVerify(ctx context.Context, netboxURL, netboxToken, cmdbURL, reportPath string, cmClient *cmdb.Client) {
+	log.Printf("开始双轨对账：NetBox=%s ↔ CMDB=%s（mode=verify）", netboxURL, cmdbURL)
+	v := migrate.NewVerifier(netbox.NewClient(netboxURL, netboxToken), cmClient)
+	report, err := v.Run(ctx, netboxURL, cmdbURL)
+	if err != nil {
+		log.Fatalf("对账未完成: %v", err)
+	}
+	if werr := report.WriteJSON(reportPath); werr != nil {
+		log.Fatalf("写入对账报告失败: %v", werr)
+	}
+	fmt.Print(report.Summary())
+	fmt.Printf("报告已写入 %s\n", reportPath)
+	if ctx.Err() != nil {
+		log.Fatal("对账被中断")
+	}
+	if !report.FullyConsistent() {
+		os.Exit(2)
+	}
 }

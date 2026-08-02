@@ -1055,6 +1055,198 @@ paths:
                 $ref: '#/components/schemas/AlertEvent'
         '404':
           $ref: '#/components/responses/NotFound'
+  /api/v1/integrations/oxidized/events:
+    post:
+      tags: [integrations]
+      summary: Oxidized 备份/变更事件回写
+      operationId: oxidizedEvent
+      description: |
+        Oxidized webhook 回写（F-062）：不走会话鉴权，改校验共享密钥头 X-Oxidized-Token
+        （env OXIDIZED_WEBHOOK_TOKEN，默认 dev-oxidized-token，不符 401）。
+        按 node 名匹配 network_device CI（name/hostname 属性）：backup 事件回写
+        last_backup_at、backup_count（自增）、config_source=oxidized（同时间戳重复推送按
+        last_backup_at 去重幂等）；change 事件回写 last_change_at 并写 info 级「配置变更」
+        告警事件。配置原文不入库，全部写操作留审计。
+      parameters:
+        - name: X-Oxidized-Token
+          in: header
+          description: Oxidized webhook 共享密钥
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OxidizedEventRequest'
+      responses:
+        '200':
+          description: 事件已处理（idempotent=true 表示命中幂等去重，未重复累加）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OxidizedEventResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/integrations/n9e/writeback:
+    post:
+      tags: [integrations]
+      summary: n9e 上行回写
+      operationId: n9eWriteback
+      description: |
+        CI 业务归属上行（F-070）：遍历 host CI，ident 匹配 n9e target 后回写
+        tags（biz_group/owner/env，空格分隔 k=v，同键覆盖合并）与 note（负责人+环境）；
+        无 biz_group 的主机写 info 级「治理待办：未归组主机」告警（按未确认去重）。
+        n9e 连接取 credentials 表 type=n9e 的第一条（secret 含 api_url/token），
+        缺则回退环境变量 N9E_API_URL/N9E_API_TOKEN。
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/N9EWritebackRequest'
+      responses:
+        '200':
+          description: 回写结果统计
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/N9EWritebackResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '502':
+          description: n9e API 调用失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: n9e 未配置（无凭据且无环境变量）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/integrations/n9e/dashboard-url:
+    get:
+      tags: [integrations]
+      summary: n9e 主机仪表盘链接
+      operationId: n9eDashboardURL
+      description: 前端嵌入用（F-063）：拼 n9e base + /dashboards/host?ident= 返回（会话鉴权）
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: ident
+          in: query
+          description: 主机标识（n9e target ident）
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 仪表盘 URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/N9EDashboardURLResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          description: n9e 未配置
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/integrations/n9e/alerts:
+    get:
+      tags: [integrations]
+      summary: n9e 当前告警代理
+      operationId: n9eAlerts
+      description: |
+        前端嵌入用（F-063）：代理 n9e /api/n9e/alert-cur-events?ident=，
+        响应体原样透传（n9e 原始告警数组，含 severity/trigger/first_trigger_time 等字段），
+        告警原文不入主库（会话鉴权）。
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: ident
+          in: query
+          description: 主机标识（n9e target ident）
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: n9e 原始告警数组
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          description: n9e API 调用失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: n9e 未配置
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/attribution/run:
+    post:
+      tags: [attribution]
+      summary: 应用归属引擎运行
+      operationId: attributionRun
+      description: |
+        应用归属挂载（F-028），规则按序：a) 标签继承——host attributes.tags 含
+        app=<code> 挂到 code 匹配的 biz_app；b) 业务组映射——biz_group 经 group_map
+        （默认 {"电商前台":"mall-front","订单中台":"mall-order"}，可被 rules.group_map
+        整体覆盖）映射 biz_app code；c) 命名规范——ident 匹配 ^([a-z0-9]+)-([a-z]+)
+        取第二段经 group_map 尝试。挂接方式为 biz_app CI 建 deployed_on→host 关系，
+        按三元组去重幂等；dry_run 只演练不落库。
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttributionRunRequest'
+      responses:
+        '200':
+          description: 归属运行结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttributionRunResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 components:
   securitySchemes:
     cookieAuth:
@@ -2253,3 +2445,107 @@ components:
           type: integer
         page_size:
           type: integer
+    OxidizedEventRequest:
+      type: object
+      required: [node, event, time]
+      description: Oxidized webhook 事件报文（F-062）
+      properties:
+        node:
+          type: string
+          description: 设备名（匹配 network_device CI 的 name/hostname 属性）
+          example: bj-core-sw-01
+        event:
+          type: string
+          enum: [backup, change]
+          description: 事件类型（配置备份完成 / 配置变更）
+        time:
+          type: string
+          format: date-time
+          description: 事件时间（RFC3339）
+        user:
+          type: string
+          description: 变更操作者（change 事件可带）
+    OxidizedEventResponse:
+      type: object
+      required: [status, ci_id, idempotent]
+      properties:
+        status:
+          type: string
+          example: ok
+        ci_id:
+          type: string
+          format: uuid
+          description: 命中的 network_device CI
+        idempotent:
+          type: boolean
+          description: 是否命中幂等去重（同时间戳重复 backup 推送）
+    N9EWritebackRequest:
+      type: object
+      properties:
+        dry_run:
+          type: boolean
+          description: 演练模式（只统计不调用 n9e 写接口、不落告警）
+          default: false
+    N9EWritebackResponse:
+      type: object
+      required: [updated, skipped, todos, errors]
+      properties:
+        updated:
+          type: integer
+          description: 成功回写 tags/note 的主机数
+        skipped:
+          type: integer
+          description: 跳过的主机数（无 ident、n9e 无此 target、无可回写属性）
+        todos:
+          type: integer
+          description: 未归组主机数（生成治理待办告警）
+        errors:
+          type: array
+          items:
+            type: string
+          description: '逐主机回写失败明细（"ident: 原因"）'
+    N9EDashboardURLResponse:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          description: n9e 主机仪表盘 URL（前端 iframe 嵌入）
+          example: http://n9e:17000/dashboards/host?ident=web-01
+    AttributionRunRequest:
+      type: object
+      properties:
+        dry_run:
+          type: boolean
+          description: 演练模式（只统计不落关系）
+          default: false
+        rules:
+          type: object
+          properties:
+            group_map:
+              type: object
+              additionalProperties:
+                type: string
+              description: 业务组/命名段 → biz_app code 映射（整体覆盖默认映射）
+    AttributionRunResponse:
+      type: object
+      required: [matched, rules_hit, unmatched]
+      properties:
+        matched:
+          type: integer
+          description: 成功挂接的主机数
+        rules_hit:
+          type: object
+          description: 各规则命中次数（tag_inherit/group_map/naming）
+          properties:
+            tag_inherit:
+              type: integer
+            group_map:
+              type: integer
+            naming:
+              type: integer
+        unmatched:
+          type: array
+          items:
+            type: string
+          description: 未命中任何规则的主机 ident

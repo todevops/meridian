@@ -287,3 +287,84 @@ func TestPatchIP(t *testing.T) {
 		t.Fatalf("期望 ErrIPNotFound，得到 %v", err)
 	}
 }
+
+// ---------- RelinkCI（CI↔IPAM 挂接维护） ----------
+
+// 造一条 IP 登记记录。
+func mustRegisterIP(t *testing.T, db *gorm.DB, prefixID, ip string) store.IPAddress {
+	t.Helper()
+	rec := store.IPAddress{PrefixID: prefixID, IP: ip, Status: "used"}
+	if err := db.Create(&rec).Error; err != nil {
+		t.Fatalf("登记 IP 失败: %v", err)
+	}
+	return rec
+}
+
+func ipCIID(t *testing.T, db *gorm.DB, id string) string {
+	t.Helper()
+	var rec store.IPAddress
+	if err := db.First(&rec, "id = ?", id).Error; err != nil {
+		t.Fatalf("查询 IP 失败: %v", err)
+	}
+	return rec.CIID
+}
+
+func TestRelinkCI(t *testing.T) {
+	db, s := setup(t)
+	p1 := mustCreatePrefix(t, s, "10.1.0.0/24", "p1", nil)
+	p2 := mustCreatePrefix(t, s, "10.2.0.0/24", "p2", nil)
+
+	// 唯一登记：正常挂接；IP 变更后旧挂接解除、新挂接建立。
+	a := mustRegisterIP(t, db, p1.ID, "10.1.0.5")
+	b := mustRegisterIP(t, db, p2.ID, "10.2.0.9")
+	if err := RelinkCI(db, "ci-1", "", "10.1.0.5"); err != nil {
+		t.Fatalf("挂接失败: %v", err)
+	}
+	if got := ipCIID(t, db, a.ID); got != "ci-1" {
+		t.Fatalf("期望挂接 ci-1，实际 %q", got)
+	}
+	if err := RelinkCI(db, "ci-1", "10.1.0.5", "10.2.0.9"); err != nil {
+		t.Fatalf("变更挂接失败: %v", err)
+	}
+	if got := ipCIID(t, db, a.ID); got != "" {
+		t.Fatalf("旧 IP 应解除挂接，实际 %q", got)
+	}
+	if got := ipCIID(t, db, b.ID); got != "ci-1" {
+		t.Fatalf("新 IP 应挂接 ci-1，实际 %q", got)
+	}
+
+	// 未登记 IP：不自动创建条目。
+	if err := RelinkCI(db, "ci-2", "", "10.1.0.200"); err != nil {
+		t.Fatalf("未登记 IP 不应报错: %v", err)
+	}
+	var n int64
+	db.Model(&store.IPAddress{}).Where("ip = ?", "10.1.0.200").Count(&n)
+	if n != 0 {
+		t.Fatalf("未登记 IP 不应自动创建，实际 %d 条", n)
+	}
+}
+
+// 重叠前缀（多 VRF）下同 IP 有多条登记：无法判定归属时一条也不挂。
+func TestRelinkCIAmbiguousIP(t *testing.T) {
+	db, s := setup(t)
+	p1 := mustCreatePrefix(t, s, "172.16.0.0/24", "vrf-a", nil)
+	// 第二条同网段前缀直接落库（绕过同级重叠校验，模拟多 VRF 场景）。
+	p2 := store.IPPrefix{CIDR: "172.16.0.0/24", Name: "vrf-b"}
+	if err := db.Create(&p2).Error; err != nil {
+		t.Fatalf("创建第二前缀失败: %v", err)
+	}
+	x := mustRegisterIP(t, db, p1.ID, "172.16.0.10")
+	y := store.IPAddress{PrefixID: p2.ID, IP: "172.16.0.10", Status: "used"}
+	if err := db.Create(&y).Error; err != nil {
+		t.Fatalf("登记第二条同 IP 失败: %v", err)
+	}
+	if err := RelinkCI(db, "ci-9", "", "172.16.0.10"); err != nil {
+		t.Fatalf("歧义场景不应报错: %v", err)
+	}
+	if got := ipCIID(t, db, x.ID); got != "" {
+		t.Fatalf("歧义时不应挂接，实际 x=%q", got)
+	}
+	if got := ipCIID(t, db, y.ID); got != "" {
+		t.Fatalf("歧义时不应挂接，实际 y=%q", got)
+	}
+}

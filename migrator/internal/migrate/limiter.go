@@ -16,19 +16,15 @@ type tokenBucket struct {
 	burst  float64 // 桶容量
 	tokens float64
 	last   time.Time
-	now    func() time.Time // 可注入（测试用），默认 time.Now
 }
 
-// newTokenBucket 创建令牌桶；rate <= 0 时按 1 个/秒兜底（调用方已做默认值收敛，这里防御）。
+// newTokenBucket 创建令牌桶；调用方（Options.Normalize）已保证 rate > 0。
 func newTokenBucket(rate float64) *tokenBucket {
-	if rate <= 0 {
-		rate = 1
-	}
 	burst := rate
 	if burst < 1 {
 		burst = 1
 	}
-	return &tokenBucket{rate: rate, burst: burst, last: time.Now(), now: time.Now}
+	return &tokenBucket{rate: rate, burst: burst, last: time.Now()}
 }
 
 // Wait 阻塞直到积攒 n 个令牌并一次性取走；n 大于桶容量时按容量分块逐块等待。
@@ -51,7 +47,7 @@ func (b *tokenBucket) Wait(ctx context.Context, n int) error {
 func (b *tokenBucket) waitChunk(ctx context.Context, chunk int) error {
 	for {
 		b.mu.Lock()
-		now := b.now()
+		now := time.Now()
 		b.tokens += now.Sub(b.last).Seconds() * b.rate
 		if b.tokens > b.burst {
 			b.tokens = b.burst
