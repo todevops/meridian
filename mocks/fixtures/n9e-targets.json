@@ -1,0 +1,64 @@
+[
+  {
+    "id": 101,
+    "group_id": 12,
+    "ident": "web-dup",
+    "note": "电商前台 Web 节点 A（categraf 上报）",
+    "tags": "env=prod role=web app=mall-front",
+    "host_tags": [
+      "idc=bj-yz",
+      "rack=A01"
+    ],
+    "update_at": 1785500000,
+    "host_ip": "10.30.1.11",
+    "agent_version": "v0.3.80",
+    "os": "CentOS Linux 7.9",
+    "cpu_num": 16,
+    "cpu_util": 23.5,
+    "mem_util": 61.2,
+    "arch": "amd64",
+    "target_up": 1,
+    "group_name": "电商前台"
+  },
+  {
+    "id": 137,
+    "group_id": 12,
+    "ident": "web-dup",
+    "note": "电商前台 Web 节点 B（ident 撞键样本，调和需按 host_ip 裁决）",
+    "tags": "env=prod role=web app=mall-front",
+    "host_tags": [
+      "idc=bj-yz",
+      "rack=A02"
+    ],
+    "update_at": 1785499700,
+    "host_ip": "10.30.1.12",
+    "agent_version": "v0.3.80",
+    "os": "CentOS Linux 7.9",
+    "cpu_num": 16,
+    "cpu_util": 18.9,
+    "mem_util": 55.4,
+    "arch": "amd64",
+    "target_up": 1,
+    "group_name": "电商前台"
+  },
+  {
+    "id": 158,
+    "group_id": 14,
+    "ident": "db-mysql-01",
+    "note": "MySQL 主库（心跳已停滞 9 天，演示疑似下线核查）",
+    "tags": "env=prod role=db app=mall-order",
+    "host_tags": [
+      "idc=bj-yz"
+    ],
+    "update_at": 1784722400,
+    "host_ip": "10.30.2.21",
+    "agent_version": "v0.3.76",
+    "os": "Rocky Linux 9.4",
+    "cpu_num": 32,
+    "cpu_util": 0,
+    "mem_util": 0,
+    "arch": "amd64",
+    "target_up": 1,
+    "group_name": "订单中台"
+  }
+]

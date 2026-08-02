@@ -1,0 +1,16 @@
+{
+  "code": "db_instance",
+  "name": "数据库实例",
+  "reconcile_keys": ["instance_addr"],
+  "attributes": [
+    { "code": "instance_addr", "name": "实例地址(ip:port)", "type": "string", "required": true, "unique": true, "source": "categraf" },
+    { "code": "component_type", "name": "组件类型", "type": "enum", "enum_values": ["mysql", "postgresql", "redis", "mongodb", "elasticsearch", "kafka", "rabbitmq", "sqlserver", "oracle"], "required": true, "source": "categraf" },
+    { "code": "version", "name": "版本", "type": "string", "source": "categraf" },
+    { "code": "port", "name": "端口", "type": "number", "required": true, "source": "categraf" },
+    { "code": "role", "name": "角色", "type": "enum", "enum_values": ["master", "slave", "standalone"], "source": "categraf" },
+    { "code": "cluster_name", "name": "所属集群", "type": "string", "source": "manual" }
+  ],
+  "relations": [
+    { "code": "runs_on", "name": "运行于", "target_model": "host", "cardinality": "one_to_one", "direction": "outgoing" }
+  ]
+}

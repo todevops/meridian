@@ -1,0 +1,23 @@
+{
+  "records": [
+    {
+      "source": "n9e",
+      "collector": "n9e-target-puller",
+      "model_candidate": "host",
+      "attributes": {
+        "ident": "web-01-clone",
+        "ip": "10.0.1.11",
+        "host_type": "virtual_machine",
+        "os": "Rocky Linux 9.4",
+        "cpu_num": 8,
+        "arch": "x86_64",
+        "agent_version": "0.3.90",
+        "biz_group": "基础平台组",
+        "tags": "env=prod,role=web",
+        "target_up": true,
+        "last_heartbeat_at": "2026-08-02T13:10:00Z"
+      },
+      "occurred_at": "2026-08-02T13:15:00Z"
+    }
+  ]
+}

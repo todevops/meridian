@@ -1,0 +1,41 @@
+[
+  {
+    "id": 1,
+    "name": "mall-front-vm-01",
+    "status": { "value": "active", "label": "Active" },
+    "site": { "id": 1, "name": "北京亦庄机房", "slug": "bj-yz" },
+    "cluster": { "id": 1, "name": "vsphere-prod", "type": { "id": 1, "name": "VMware vSphere", "slug": "vmware-vsphere" } },
+    "role": { "id": 5, "name": "应用虚拟机", "slug": "app-vm" },
+    "vcpus": 8,
+    "memory": 32768,
+    "disk": 200,
+    "primary_ip4": { "id": 7, "address": "10.30.1.17/24" },
+    "comments": "电商前台应用节点"
+  },
+  {
+    "id": 2,
+    "name": "order-api-vm-01",
+    "status": { "value": "active", "label": "Active" },
+    "site": { "id": 1, "name": "北京亦庄机房", "slug": "bj-yz" },
+    "cluster": { "id": 1, "name": "vsphere-prod", "type": { "id": 1, "name": "VMware vSphere", "slug": "vmware-vsphere" } },
+    "role": { "id": 5, "name": "应用虚拟机", "slug": "app-vm" },
+    "vcpus": 16,
+    "memory": 65536,
+    "disk": 500,
+    "primary_ip4": { "id": 8, "address": "10.30.1.18/24" },
+    "comments": "订单中台 API 节点"
+  },
+  {
+    "id": 3,
+    "name": "report-vm-01",
+    "status": { "value": "offline", "label": "Offline" },
+    "site": { "id": 2, "name": "上海张江机房", "slug": "sh-zj" },
+    "cluster": { "id": 2, "name": "vsphere-dr", "type": { "id": 1, "name": "VMware vSphere", "slug": "vmware-vsphere" } },
+    "role": { "id": 6, "name": "报表虚拟机", "slug": "report-vm" },
+    "vcpus": 4,
+    "memory": 16384,
+    "disk": 100,
+    "primary_ip4": { "id": 9, "address": "10.30.1.19/24" },
+    "comments": "报表节点（停机待迁移，演示离线状态）"
+  }
+]

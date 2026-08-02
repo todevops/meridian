@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<!-- 手工验证用 nmap -sn -oX 样本：一台网络设备（Cisco，应被排除）+ 一台普通主机 -->
+<nmaprun scanner="nmap" args="nmap -sn -oX - 192.168.10.0/29" start="1785000000" startstr="Fri Jul 25 12:00:00 2026" version="7.95">
+  <host starttime="1785000000" endtime="1785000002">
+    <status state="up" reason="arp-response" reason_ttl="64"/>
+    <address addr="192.168.10.1" addrtype="ipv4"/>
+    <address addr="AA:BB:CC:00:00:01" addrtype="mac" vendor="Cisco Systems"/>
+    <hostnames><hostname name="sw-core-01.dc1" type="PTR"/></hostnames>
+  </host>
+  <host starttime="1785000000" endtime="1785000002">
+    <status state="up" reason="arp-response" reason_ttl="64"/>
+    <address addr="192.168.10.5" addrtype="ipv4"/>
+    <address addr="52:54:00:AB:CD:EF" addrtype="mac" vendor="QEMU Virtual NIC"/>
+    <hostnames><hostname name="vm-app-01" type="PTR"/></hostnames>
+  </host>
+  <runstats><finished time="1785000002" timestr="Fri Jul 25 12:00:02 2026"/><hosts up="2" down="0" total="2"/></runstats>
+</nmaprun>

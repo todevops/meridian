@@ -1,0 +1,61 @@
+# collectors — CMDB 自研采集器
+
+五款数据源采集器，拉取源端清单映射为标准发现记录（契约 `DiscoveryRecord`，见 `pkg/openapi/openapi.yaml`），
+批量 `POST {CMDB_API_URL}/api/v1/discovery-records`。纯 Go 标准库实现，无外部依赖。
+
+## 构建与运行
+
+```bash
+go build ./cmd/collector
+./collector -collector=all                 # 全部采集器
+./collector -collector=aliyun,librenms     # 逗号分隔多选
+./collector -collector=ipscan -dry-run     # 只打印记录，不上报、不变更模型
+go test ./...                              # 单测（httptest 夹具 + 内嵌 nmap XML）
+```
+
+## 采集器一览
+
+| 采集器 | 数据源 | 端点 | model_candidate | 关键属性 |
+|---|---|---|---|---|
+| aliyun | 阿里云 ECS | `GET {ALIYUN_API_URL}/?Action=DescribeInstances&PageSize=500&PageNumber=1` | host | host_type=cloud, cloud_provider=aliyun, cloud_instance_id, ip（首个私网）, ident, spec, zone, status, tags |
+| volc | 火山 CloudControl | `POST {VOLC_API_URL}/?Action=ListResources&Version=2021-01-01` | host（ECS 类）/ k8s_workload（VKE 占位，注记 cluster） | 同上，cloud_provider=volc；未建模资源类型跳过 |
+| dbdiscover | TSDB（Prometheus 协议） | `GET {TSDB_API_URL}/api/v1/label/instance/values?match[]=<指标>` | db_instance | type（mysql/redis/kafka/elasticsearch）, ip, port, source=tsdb_label |
+| librenms | LibreNMS | `GET {LIBRENMS_API_URL}/api/v0/devices`（X-Auth-Token） | network_device | sysname, ip, vendor, model（缺省回退 hardware）, serial, source=librenms |
+| ipscan | nmap | `NMAP_FROM_FILE` 文件 或 `exec nmap -sn -oX - {NMAP_SCAN_TARGET}` | host | ip, source=ip_scan, last_seen_alive（取扫描时间） |
+
+### dbdiscover 的模型确保
+
+启动时 `GET /api/v1/models?keyword=db_instance`，若模型 `reconcile_keys != ["type","ip","port"]` 则
+`PATCH /api/v1/models/{id}` 修正；模型不存在（应由种子数据创建）只告警不失败。
+dry-run 模式下只打印意图不变更，CMDB 不可达降级为告警。
+
+### ipscan 说明
+
+- 输入二选一：`NMAP_FROM_FILE`（已有 `nmap -oX` 结果文件，优先）或 `NMAP_SCAN_TARGET`（现扫网段，需本机已装 nmap；缺失时报错提示安装或改用 from-file）。
+- 只上报在线主机；MAC 厂商命中网络设备关键词（cisco/huawei/h3c/juniper 等）的主机视为网络设备，交由 LibreNMS 通道发现，不重复上报。
+
+## 环境变量
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `CMDB_API_URL` | `http://localhost:8080` | CMDB API 地址 |
+| `ALIYUN_API_URL` | `:19005` | 阿里云 mock（简写自动补 `http://localhost`） |
+| `VOLC_API_URL` | `:19006` | 火山 CloudControl mock |
+| `TSDB_API_URL` | `:19004` | TSDB mock |
+| `LIBRENMS_API_URL` | `:19003` | LibreNMS mock |
+| `LIBRENMS_API_TOKEN` | 无（必填） | LibreNMS X-Auth-Token，对接 mock 时任意非空值 |
+| `NMAP_FROM_FILE` | 空 | nmap -oX 结果文件路径 |
+| `NMAP_SCAN_TARGET` | 空 | ipscan 现扫网段，如 `192.168.1.0/24` |
+
+## 响应形状兼容说明
+
+- aliyun：兼容顶层数组（mock 简化）与 `{"Instances":{"Instance":[...]}}`（官方）两种响应；
+  `PrivateIpAddress` 兼容字符串 / 数组 / `{"IpAddress":[...]}`；`Tags` 兼容字典 / `{"Tag":[...]}` / `[{"Key","Value"}]`。
+- volc：`Configuration` 兼容字符串内嵌 JSON（官方）与直接对象（mock）；`Tags` 兼容 `[{"Key","Value"}]` 与字典。
+- TSDB label values：容忍 `status` 为 `success` 或 `ok`；其他非空状态视为错误。
+
+## 手工 dry-run 验证（不占端口）
+
+```bash
+NMAP_FROM_FILE=./testdata/nmap-sample.xml go run ./cmd/collector -collector=ipscan -dry-run
+```

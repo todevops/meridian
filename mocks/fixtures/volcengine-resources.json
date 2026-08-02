@@ -1,0 +1,54 @@
+{
+  "Resources": [
+    {
+      "ResourceType": "ECS",
+      "ResourceId": "i-ye2f4a1b8c3d5e6f",
+      "Configuration": {
+        "InstanceName": "volc-mall-front-01",
+        "InstanceType": "ecs.g3i.xlarge",
+        "Status": "RUNNING",
+        "ChargeType": "PostPaid",
+        "PrivateIpAddress": "10.30.1.31",
+        "ZoneId": "cn-beijing-a",
+        "VpcId": "vpc-2ze9f1a3b5"
+      },
+      "Tags": [
+        { "Key": "env", "Value": "prod" },
+        { "Key": "app", "Value": "mall-front" }
+      ]
+    },
+    {
+      "ResourceType": "ECS",
+      "ResourceId": "i-ye9c7d2e5f1a3b4c",
+      "Configuration": {
+        "InstanceName": "volc-order-api-01",
+        "InstanceType": "ecs.g3i.2xlarge",
+        "Status": "RUNNING",
+        "ChargeType": "PrePaid",
+        "PrivateIpAddress": "10.30.1.32",
+        "ZoneId": "cn-beijing-b",
+        "VpcId": "vpc-2ze9f1a3b5"
+      },
+      "Tags": [
+        { "Key": "env", "Value": "prod" },
+        { "Key": "app", "Value": "mall-order" }
+      ]
+    },
+    {
+      "ResourceType": "VKE",
+      "ResourceId": "ccavn2qsmk8t0p7d1f2g3",
+      "Configuration": {
+        "ClusterName": "volc-prod-k8s",
+        "KubernetesVersion": "1.28",
+        "NodeCount": 6,
+        "Status": "Running",
+        "VpcId": "vpc-2ze9f1a3b5",
+        "ClusterCidr": "172.20.0.0/16"
+      },
+      "Tags": [
+        { "Key": "env", "Value": "prod" },
+        { "Key": "app", "Value": "platform" }
+      ]
+    }
+  ]
+}

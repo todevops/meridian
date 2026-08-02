@@ -1,0 +1,80 @@
+{
+  "started_at": "2026-08-02T22:32:40.189528+08:00",
+  "finished_at": "2026-08-02T22:32:40.3134983+08:00",
+  "duration_seconds": 0.12,
+  "netbox_api_url": "http://localhost:19092",
+  "cmdb_api_url": "http://localhost:8081",
+  "models": [
+    {
+      "code": "room",
+      "status": "created"
+    },
+    {
+      "code": "rack",
+      "status": "created"
+    },
+    {
+      "code": "network_device",
+      "status": "created"
+    },
+    {
+      "code": "vlan",
+      "status": "created"
+    },
+    {
+      "code": "virtual_machine",
+      "status": "created"
+    }
+  ],
+  "entities": [
+    {
+      "entity": "sites",
+      "label": "站点→机房",
+      "fetched": 2,
+      "succeeded": 2,
+      "failed": 0
+    },
+    {
+      "entity": "racks",
+      "label": "机架→机柜",
+      "fetched": 2,
+      "succeeded": 2,
+      "failed": 0
+    },
+    {
+      "entity": "devices",
+      "label": "设备→网络设备",
+      "fetched": 3,
+      "succeeded": 3,
+      "failed": 0
+    },
+    {
+      "entity": "vlans",
+      "label": "VLAN→VLAN CI",
+      "fetched": 2,
+      "succeeded": 2,
+      "failed": 0
+    },
+    {
+      "entity": "virtual_machines",
+      "label": "虚拟机→VM CI",
+      "fetched": 2,
+      "succeeded": 2,
+      "failed": 0
+    },
+    {
+      "entity": "prefixes",
+      "label": "前缀→IPAM 前缀",
+      "fetched": 3,
+      "succeeded": 3,
+      "failed": 0
+    },
+    {
+      "entity": "ip_addresses",
+      "label": "IP→IPAM IP",
+      "fetched": 3,
+      "succeeded": 3,
+      "failed": 0
+    }
+  ]
+}

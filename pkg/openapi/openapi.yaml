@@ -1,0 +1,1530 @@
+openapi: 3.0.3
+info:
+  title: CMDB API
+  version: 0.1.0
+  description: 纯自研 CMDB 核心 API 契约，契约先行，前后端据此并行开发
+servers:
+  - url: /
+    description: 相对路径（与后端同域部署）
+tags:
+  - name: auth
+    description: 身份认证（登录/登出/当前用户）
+  - name: users
+    description: 用户管理（需 user:manage 权限）
+  - name: roles
+    description: 角色与权限点（需 role:manage 权限）
+  - name: models
+    description: 模型定义（模型/属性/关系元数据）
+  - name: cis
+    description: CI 实例与关系查询
+  - name: discovery
+    description: 发现记录写入
+  - name: reconcile
+    description: 调和引擎
+  - name: discovery-pool
+    description: 发现池（待人工裁决的发现记录）
+  - name: dcim
+    description: DCIM（机房/机柜/U 位/容量）
+# 全局认证要求：除 /api/v1/auth/login 与未列入契约的健康检查外，所有接口需携带会话
+security:
+  - cookieAuth: []
+  - bearerAuth: []
+paths:
+  /api/v1/auth/login:
+    post:
+      tags: [auth]
+      summary: 用户名密码登录
+      operationId: login
+      security: []
+      description: 校验通过后签发 JWT,写入 httpOnly cookie(cmdb_token),同时返回当前用户信息;客户端也可从响应体取 token 走 Bearer 方式
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/auth/logout:
+    post:
+      tags: [auth]
+      summary: 退出登录
+      operationId: logout
+      description: 清除会话 cookie(JWT 无状态,服务端不做吊销)
+      responses:
+        '200':
+          description: 已退出
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    example: ok
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/auth/me:
+    get:
+      tags: [auth]
+      summary: 查询当前登录用户
+      operationId: getCurrentUser
+      responses:
+        '200':
+          description: 当前用户信息(含角色与权限点并集)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/users:
+    get:
+      tags: [users]
+      summary: 查询用户列表
+      operationId: listUsers
+      parameters:
+        - name: keyword
+          in: query
+          description: 按用户名或显示名模糊过滤
+          required: false
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: 用户分页列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [users]
+      summary: 创建用户
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreateRequest'
+      responses:
+        '200':
+          description: 创建成功,返回完整用户
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/users/{user_id}:
+    get:
+      tags: [users]
+      summary: 查询用户详情
+      operationId: getUser
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: 用户详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [users]
+      summary: 更新用户(显示名/状态/重置密码/角色分配)
+      operationId: patchUser
+      description: 内置 admin 用户(is_builtin=true)不允许停用、不允许移除 admin 角色
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserPatchRequest'
+      responses:
+        '200':
+          description: 更新成功,返回完整用户
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/roles:
+    get:
+      tags: [roles]
+      summary: 查询角色列表
+      operationId: listRoles
+      responses:
+        '200':
+          description: 角色列表(含权限点与用户数)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [roles]
+      summary: 创建角色
+      operationId: createRole
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleCreateRequest'
+      responses:
+        '200':
+          description: 创建成功,返回完整角色
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/roles/{role_id}:
+    get:
+      tags: [roles]
+      summary: 查询角色详情
+      operationId: getRole
+      parameters:
+        - $ref: '#/components/parameters/RoleId'
+      responses:
+        '200':
+          description: 角色详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [roles]
+      summary: 更新角色(名称/描述/权限点)
+      operationId: patchRole
+      description: 内置角色(is_builtin=true)的 code 不可修改;内置 admin 角色的权限点不可修改
+      parameters:
+        - $ref: '#/components/parameters/RoleId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RolePatchRequest'
+      responses:
+        '200':
+          description: 更新成功,返回完整角色
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [roles]
+      summary: 删除角色
+      operationId: deleteRole
+      description: 内置角色不可删除;仍有用户关联的角色不可删除
+      parameters:
+        - $ref: '#/components/parameters/RoleId'
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    example: ok
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/permissions:
+    get:
+      tags: [roles]
+      summary: 查询权限点目录
+      operationId: listPermissions
+      description: 返回系统全部权限点(固定目录,角色编辑界面据此渲染勾选项)
+      responses:
+        '200':
+          description: 权限点列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PermissionItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/models:
+    get:
+      tags: [models]
+      summary: 查询模型列表
+      operationId: listModels
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: keyword
+          in: query
+          description: 按名称或编码模糊过滤
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 模型分页列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    post:
+      tags: [models]
+      summary: 创建模型
+      operationId: createModel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModelCreateRequest'
+      responses:
+        '200':
+          description: 创建成功，返回完整模型
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Model'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/v1/models/{model_id}:
+    get:
+      tags: [models]
+      summary: 查询模型详情
+      operationId: getModel
+      parameters:
+        - $ref: '#/components/parameters/ModelId'
+      responses:
+        '200':
+          description: 模型详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Model'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [models]
+      summary: 更新模型（部分字段）
+      operationId: patchModel
+      parameters:
+        - $ref: '#/components/parameters/ModelId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModelPatchRequest'
+      responses:
+        '200':
+          description: 更新成功，返回完整模型
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Model'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/cis:
+    get:
+      tags: [cis]
+      summary: 查询 CI 列表（支持模型过滤与分页）
+      operationId: listCIs
+      parameters:
+        - name: model_id
+          in: query
+          description: 按所属模型过滤
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          description: 按状态过滤
+          required: false
+          schema:
+            type: string
+            enum: [discovered, active, retired]
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: CI 分页列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CIListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    post:
+      tags: [cis]
+      summary: 创建 CI
+      operationId: createCI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CICreateRequest'
+      responses:
+        '200':
+          description: 创建成功，返回完整 CI
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CI'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/v1/cis/{ci_id}:
+    get:
+      tags: [cis]
+      summary: 查询 CI 详情
+      operationId: getCI
+      parameters:
+        - $ref: '#/components/parameters/CIId'
+      responses:
+        '200':
+          description: CI 详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CI'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [cis]
+      summary: 更新 CI（部分字段）
+      operationId: patchCI
+      parameters:
+        - $ref: '#/components/parameters/CIId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CIPatchRequest'
+      responses:
+        '200':
+          description: 更新成功，返回完整 CI
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CI'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/cis/{ci_id}/relations:
+    get:
+      tags: [cis]
+      summary: 查询 CI 的关系列表
+      operationId: listCIRelations
+      parameters:
+        - $ref: '#/components/parameters/CIId'
+      responses:
+        '200':
+          description: 关系列表（含对端 CI 摘要）
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CIRelation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [cis]
+      summary: 创建 CI 关系
+      operationId: createCIRelation
+      description: 在当前 CI 与对端 CI 间建立关系；关系编码须在所属模型的关系定义内，对端 CI 模型须匹配 target_model。cardinality 为 one_to_one 时自动替换同编码同方向的既有关系（用于改挂，如机柜换机房）
+      parameters:
+        - $ref: '#/components/parameters/CIId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CIRelationCreateRequest'
+      responses:
+        '200':
+          description: 创建成功，返回关系（含对端 CI 摘要）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CIRelation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/cis/{ci_id}/relations/{relation_code}/{peer_ci_id}:
+    delete:
+      tags: [cis]
+      summary: 删除 CI 关系
+      operationId: deleteCIRelation
+      parameters:
+        - $ref: '#/components/parameters/CIId'
+        - name: relation_code
+          in: path
+          description: 关系编码
+          required: true
+          schema:
+            type: string
+        - name: peer_ci_id
+          in: path
+          description: 对端 CI ID
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    example: ok
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/discovery-records:
+    post:
+      tags: [discovery]
+      summary: 批量写入发现记录
+      operationId: createDiscoveryRecords
+      description: 采集器上报标准发现记录，服务端接收后写入 JetStream 等待调和
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiscoveryRecordBatchRequest'
+      responses:
+        '200':
+          description: 批量接收结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscoveryRecordBatchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/v1/reconcile/preview:
+    post:
+      tags: [reconcile]
+      summary: 调和预览（不实际落库）
+      operationId: previewReconcile
+      description: 对一条发现记录执行调和规则演练，返回将发生的动作与依据，便于规则调试
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReconcilePreviewRequest'
+      responses:
+        '200':
+          description: 调和预览结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReconcilePreviewResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/v1/discovery-pool:
+    get:
+      tags: [discovery-pool]
+      summary: 查询发现池列表
+      operationId: listDiscoveryPool
+      description: 调和判定为冲突或暂无法调和的发现记录在此等待人工裁决，列表关联原始记录与调和结果
+      parameters:
+        - name: status
+          in: query
+          description: 按裁决状态过滤
+          required: false
+          schema:
+            type: string
+            enum: [pending, confirmed, ignored]
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: 发现池分页列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscoveryPoolListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/v1/discovery-pool/{item_id}/confirm:
+    post:
+      tags: [discovery-pool]
+      summary: 确认池条目并建档 CI
+      operationId: confirmDiscoveryPoolItem
+      description: 以池条目的发现属性（可被 body 覆盖）创建 status=active 的 CI，并把池条目置 confirmed
+      parameters:
+        - $ref: '#/components/parameters/PoolItemId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiscoveryPoolConfirmRequest'
+      responses:
+        '201':
+          description: 建档成功，返回完整 CI（status=active）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CI'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/v1/discovery-pool/{item_id}/ignore:
+    post:
+      tags: [discovery-pool]
+      summary: 忽略池条目
+      operationId: ignoreDiscoveryPoolItem
+      description: 把池条目置 ignored（不建档），仅 pending 状态可操作
+      parameters:
+        - $ref: '#/components/parameters/PoolItemId'
+      responses:
+        '200':
+          description: 忽略成功，返回更新后的池条目
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscoveryPoolItem'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/v1/dcim/overview:
+    get:
+      tags: [dcim]
+      summary: DCIM 容量总览
+      operationId: getDCIMOverview
+      description: 按机房聚合机柜数量、U 位容量/占用与电力容量，并给出全局合计；未分配机房的机柜单独归入 unassigned
+      responses:
+        '200':
+          description: 容量总览
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DCIMOverview'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: cmdb_token
+      description: 登录成功后由服务端写入的 httpOnly JWT 会话 cookie
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 采集器等非浏览器客户端使用的 Bearer JWT(登录接口响应体中的 token)
+  parameters:
+    UserId:
+      name: user_id
+      in: path
+      description: 用户 ID
+      required: true
+      schema:
+        type: string
+        format: uuid
+    RoleId:
+      name: role_id
+      in: path
+      description: 角色 ID
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ModelId:
+      name: model_id
+      in: path
+      description: 模型 ID
+      required: true
+      schema:
+        type: string
+        format: uuid
+    CIId:
+      name: ci_id
+      in: path
+      description: CI ID
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PoolItemId:
+      name: item_id
+      in: path
+      description: 发现池条目 ID
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Page:
+      name: page
+      in: query
+      description: 页码，从 1 开始
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: page_size
+      in: query
+      description: 每页条数
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 20
+  responses:
+    BadRequest:
+      description: 请求参数或校验规则不通过
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: 未登录或会话已失效(错误码 UNAUTHORIZED)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: 已登录但缺少所需权限点(错误码 FORBIDDEN)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: 资源状态冲突（如重复裁决、记录重复、区间重叠）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          example: admin
+        password:
+          type: string
+          format: password
+    LoginResponse:
+      type: object
+      required: [token, user]
+      properties:
+        token:
+          type: string
+          description: JWT 会话令牌,与 httpOnly cookie 同值,供 Bearer 方式使用
+        user:
+          $ref: '#/components/schemas/CurrentUser'
+    CurrentUser:
+      type: object
+      required: [id, username, display_name, roles, permissions]
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        display_name:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+          description: 角色编码数组
+          example: [admin]
+        permissions:
+          type: array
+          items:
+            type: string
+          description: 当前用户权限点并集(如 ci:read)
+          example: ["model:read", "ci:read"]
+    User:
+      type: object
+      required: [id, username, display_name, status, roles, is_builtin, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        display_name:
+          type: string
+        status:
+          type: string
+          enum: [active, disabled]
+        roles:
+          type: array
+          items:
+            type: string
+          description: 角色编码数组
+        is_builtin:
+          type: boolean
+          description: 是否内置账号(内置 admin 不可停用/降权)
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    UserCreateRequest:
+      type: object
+      required: [username, display_name, password]
+      properties:
+        username:
+          type: string
+          minLength: 2
+        display_name:
+          type: string
+        password:
+          type: string
+          format: password
+          minLength: 6
+        roles:
+          type: array
+          items:
+            type: string
+          description: 角色编码数组
+    UserPatchRequest:
+      type: object
+      description: 全字段可选,仅更新传入字段
+      properties:
+        display_name:
+          type: string
+        status:
+          type: string
+          enum: [active, disabled]
+        password:
+          type: string
+          format: password
+          minLength: 6
+          description: 传入即重置密码
+        roles:
+          type: array
+          items:
+            type: string
+          description: 传入即整体替换角色分配
+    UserListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+    Role:
+      type: object
+      required: [id, code, name, permissions, user_count, is_builtin, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+          description: 角色编码(全局唯一)
+          example: operator
+        name:
+          type: string
+          description: 角色显示名
+          example: 运维
+        description:
+          type: string
+        permissions:
+          type: array
+          items:
+            type: string
+          description: 权限点编码数组
+          example: ["ci:read", "ci:write"]
+        user_count:
+          type: integer
+          description: 当前关联用户数
+        is_builtin:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    RoleCreateRequest:
+      type: object
+      required: [code, name, permissions]
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        permissions:
+          type: array
+          items:
+            type: string
+    RolePatchRequest:
+      type: object
+      description: 全字段可选,仅更新传入字段
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        permissions:
+          type: array
+          items:
+            type: string
+          description: 传入即整体替换权限点
+    RoleListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Role'
+    PermissionItem:
+      type: object
+      required: [code, name, description]
+      properties:
+        code:
+          type: string
+          description: 权限点编码(obj:act)
+          example: ci:read
+        name:
+          type: string
+          example: CI 查询
+        description:
+          type: string
+          example: 查询 CI 列表、详情与关系
+    DCIMRoomStat:
+      type: object
+      required: [room_id, name, rack_count, u_total, u_used, power_capacity_kw]
+      properties:
+        room_id:
+          type: string
+          format: uuid
+          description: 机房 CI ID
+        name:
+          type: string
+          description: 机房名称
+        code:
+          type: string
+          description: 机房编码
+        address:
+          type: string
+          description: 机房地址
+        rack_count:
+          type: integer
+          description: 该机房机柜数
+        u_total:
+          type: integer
+          description: U 位容量合计（机柜 u_capacity 之和）
+        u_used:
+          type: integer
+          description: U 位占用合计（挂载记录 u_height 之和）
+        power_capacity_kw:
+          type: number
+          description: 电力容量合计（kW）
+    DCIMRackStat:
+      type: object
+      required: [rack_id, room_id, name, u_total, u_used, power_capacity_kw]
+      properties:
+        rack_id:
+          type: string
+          format: uuid
+          description: 机柜 CI ID
+        room_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: 所属机房 CI ID，未分配机房时为 null
+        name:
+          type: string
+          description: 机柜编号
+        u_total:
+          type: integer
+          description: U 位容量
+        u_used:
+          type: integer
+          description: U 位占用
+        power_capacity_kw:
+          type: number
+          description: 电力容量（kW）
+    DCIMUnassignedStat:
+      type: object
+      required: [rack_count, u_total, u_used, power_capacity_kw]
+      properties:
+        rack_count:
+          type: integer
+        u_total:
+          type: integer
+        u_used:
+          type: integer
+        power_capacity_kw:
+          type: number
+    DCIMOverview:
+      type: object
+      required: [room_count, rack_count, u_total, u_used, power_capacity_kw, rooms, racks, unassigned]
+      properties:
+        room_count:
+          type: integer
+        rack_count:
+          type: integer
+        u_total:
+          type: integer
+          description: 全局 U 位容量合计
+        u_used:
+          type: integer
+          description: 全局 U 位占用合计
+        power_capacity_kw:
+          type: number
+          description: 全局电力容量合计（kW）
+        rooms:
+          type: array
+          items:
+            $ref: '#/components/schemas/DCIMRoomStat'
+        racks:
+          type: array
+          items:
+            $ref: '#/components/schemas/DCIMRackStat'
+          description: 逐机柜明细（前端分组展示用，避免 N+1 请求）
+        unassigned:
+          $ref: '#/components/schemas/DCIMUnassignedStat'
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: 机器可读错误码
+          example: VALIDATION_FAILED
+        message:
+          type: string
+          description: 人类可读错误信息
+          example: 属性 hostname 为必填项
+        details:
+          type: object
+          additionalProperties: true
+          description: 逐字段校验错误等补充信息
+    AttributeDefinition:
+      type: object
+      required: [name, code, type]
+      properties:
+        name:
+          type: string
+          description: 属性显示名
+          example: 主机名
+        code:
+          type: string
+          description: 属性编码（模型内唯一）
+          example: hostname
+        type:
+          type: string
+          enum: [string, number, bool, enum, ip, date]
+          description: 属性数据类型
+        required:
+          type: boolean
+          default: false
+          description: 是否必填
+        unique:
+          type: boolean
+          default: false
+          description: 是否模型内唯一
+        enum_values:
+          type: array
+          items:
+            type: string
+          description: type 为 enum 时的候选值
+        regex:
+          type: string
+          description: 字符串格式校验正则
+        source:
+          type: string
+          description: 属性来源（人工/采集器标识）
+          example: n9e
+    RelationDefinition:
+      type: object
+      required: [name, code, target_model, cardinality, direction]
+      properties:
+        name:
+          type: string
+          description: 关系显示名
+          example: 运行于
+        code:
+          type: string
+          description: 关系编码（模型内唯一）
+          example: runs_on
+        target_model:
+          type: string
+          description: 对端模型编码
+          example: host
+        cardinality:
+          type: string
+          enum: [one_to_one, one_to_many, many_to_many]
+          description: 基数约束
+        direction:
+          type: string
+          enum: [outgoing, incoming]
+          description: 关系方向（相对本模型）
+    Model:
+      type: object
+      required: [id, name, code, attributes, relations, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: 模型 ID
+        name:
+          type: string
+          description: 模型显示名
+          example: 主机
+        code:
+          type: string
+          description: 模型编码（全局唯一）
+          example: host
+        attributes:
+          type: array
+          items:
+            $ref: '#/components/schemas/AttributeDefinition'
+        relations:
+          type: array
+          items:
+            $ref: '#/components/schemas/RelationDefinition'
+        reconcile_keys:
+          type: array
+          items:
+            type: string
+          description: 有序调和键（属性编码数组）。首键为主键——命中即确认同一实体执行更新；其余为辅助键——命中但主键不符时判定冲突转发现池。示例 ["ident","ip"]，仅自动发现入库的模型需要配置
+          example: [ident, ip]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    ModelCreateRequest:
+      type: object
+      required: [name, code]
+      properties:
+        name:
+          type: string
+        code:
+          type: string
+        attributes:
+          type: array
+          items:
+            $ref: '#/components/schemas/AttributeDefinition'
+        relations:
+          type: array
+          items:
+            $ref: '#/components/schemas/RelationDefinition'
+        reconcile_keys:
+          type: array
+          items:
+            type: string
+          description: 有序调和键，语义同 Model.reconcile_keys
+    ModelPatchRequest:
+      type: object
+      description: 全字段可选，仅更新传入字段
+      properties:
+        name:
+          type: string
+        attributes:
+          type: array
+          items:
+            $ref: '#/components/schemas/AttributeDefinition'
+        relations:
+          type: array
+          items:
+            $ref: '#/components/schemas/RelationDefinition'
+        reconcile_keys:
+          type: array
+          items:
+            type: string
+          description: 有序调和键，语义同 Model.reconcile_keys
+    ModelListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Model'
+        total:
+          type: integer
+          description: 符合条件的总条数
+        page:
+          type: integer
+        page_size:
+          type: integer
+    CI:
+      type: object
+      required: [id, model_id, attributes, status, source, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: CI ID
+        model_id:
+          type: string
+          format: uuid
+          description: 所属模型 ID
+        attributes:
+          type: object
+          additionalProperties: true
+          description: 属性键值对，键为属性编码，取值须通过模型校验规则
+        status:
+          type: string
+          enum: [discovered, active, retired]
+          description: 生命周期状态
+        source:
+          type: string
+          description: 建档来源（manual/采集器标识）
+          example: n9e
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    CICreateRequest:
+      type: object
+      required: [model_id, attributes]
+      properties:
+        model_id:
+          type: string
+          format: uuid
+        attributes:
+          type: object
+          additionalProperties: true
+        status:
+          type: string
+          enum: [discovered, active, retired]
+          default: active
+        source:
+          type: string
+          default: manual
+    CIPatchRequest:
+      type: object
+      description: 全字段可选，attributes 为增量合并
+      properties:
+        attributes:
+          type: object
+          additionalProperties: true
+        status:
+          type: string
+          enum: [discovered, active, retired]
+        source:
+          type: string
+    CIListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CI'
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+    CIRelation:
+      type: object
+      required: [relation_code, direction, peer_ci]
+      properties:
+        relation_code:
+          type: string
+          description: 关系编码
+          example: runs_on
+        direction:
+          type: string
+          enum: [outgoing, incoming]
+          description: 相对当前 CI 的方向
+        peer_ci:
+          $ref: '#/components/schemas/CI'
+    CIRelationCreateRequest:
+      type: object
+      required: [relation_code, peer_ci_id]
+      properties:
+        relation_code:
+          type: string
+          description: 关系编码（须在所属模型的关系定义内）
+          example: located_in
+        peer_ci_id:
+          type: string
+          format: uuid
+          description: 对端 CI ID（其模型须匹配关系定义的 target_model）
+    DiscoveryRecord:
+      type: object
+      required: [source, collector, model_candidate, attributes, occurred_at]
+      properties:
+        source:
+          type: string
+          description: 发现来源系统
+          example: n9e
+        collector:
+          type: string
+          description: 采集器标识
+          example: n9e-target-puller
+        model_candidate:
+          type: string
+          description: 候选模型编码，调和引擎据此匹配
+          example: host
+        attributes:
+          type: object
+          additionalProperties: true
+          description: 采集到的原始属性键值对
+        occurred_at:
+          type: string
+          format: date-time
+          description: 采集发生时间
+    DiscoveryRecordBatchRequest:
+      type: object
+      required: [records]
+      properties:
+        records:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/DiscoveryRecord'
+    DiscoveryRecordBatchResponse:
+      type: object
+      required: [accepted, rejected, errors]
+      properties:
+        accepted:
+          type: integer
+          description: 已接收条数
+        rejected:
+          type: integer
+          description: 因校验失败被拒绝条数
+        errors:
+          type: array
+          items:
+            type: object
+            required: [index, message]
+            properties:
+              index:
+                type: integer
+                description: 被拒绝记录在请求数组中的下标
+              message:
+                type: string
+    ReconcilePreviewRequest:
+      type: object
+      required: [record]
+      properties:
+        record:
+          $ref: '#/components/schemas/DiscoveryRecord'
+    ReconcilePreviewResult:
+      type: object
+      required: [action, reasons]
+      properties:
+        action:
+          type: string
+          enum: [create, update, conflict, pool]
+          description: 调和判定动作：新建/更新/冲突/入发现池
+        matched_ci_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: 命中的存量 CI ID（action 为 update/conflict 时给出）
+        reasons:
+          type: array
+          items:
+            type: string
+          description: 判定依据（命中的匹配键、规则等）
+          example: ["ident+IP 命中主机 ci-xxx", "属性 ip 发生变更"]
+    DiscoveryPoolItem:
+      type: object
+      required: [id, source, collector, model_candidate, attributes, reconcile_action, reasons, status, created_at]
+      description: 发现池条目：原始发现记录 + 调和判定结果 + 人工裁决状态
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: 池条目 ID
+        source:
+          type: string
+          description: 发现来源系统
+          example: nmap
+        collector:
+          type: string
+          description: 采集器标识
+          example: nmap-scanner
+        model_candidate:
+          type: string
+          description: 候选模型编码
+          example: host
+        attributes:
+          type: object
+          additionalProperties: true
+          description: 采集到的原始属性键值对
+        reconcile_action:
+          type: string
+          enum: [conflict, pool]
+          description: 调和判定动作（conflict=与存量冲突，pool=暂无法调和）
+        reasons:
+          type: array
+          items:
+            type: string
+          description: 判定依据
+        status:
+          type: string
+          enum: [pending, confirmed, ignored]
+          description: 裁决状态（pending 待裁决，confirmed 已确认建档，ignored 已忽略）
+        created_at:
+          type: string
+          format: date-time
+    DiscoveryPoolListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiscoveryPoolItem'
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+    DiscoveryPoolConfirmRequest:
+      type: object
+      description: 全字段可选；缺省时沿用池条目记录的候选模型与采集属性
+      properties:
+        model_id:
+          type: string
+          description: 目标模型（ID 或编码），默认取池条目的 model_candidate
+        attributes:
+          type: object
+          additionalProperties: true
+          description: 属性增量覆盖（合并发现属性后强制走模型校验）

@@ -1,0 +1,18 @@
+[
+  {
+    "id": 1,
+    "vid": 10,
+    "name": "net-mgmt",
+    "site": { "id": 1, "name": "北京亦庄机房", "slug": "bj-yz" },
+    "status": { "value": "active", "label": "Active" },
+    "description": "网络设备管理 VLAN"
+  },
+  {
+    "id": 2,
+    "vid": 20,
+    "name": "server-service",
+    "site": { "id": 1, "name": "北京亦庄机房", "slug": "bj-yz" },
+    "status": { "value": "active", "label": "Active" },
+    "description": "服务器业务 VLAN"
+  }
+]

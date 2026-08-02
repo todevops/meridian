@@ -1,0 +1,650 @@
+openapi: 3.0.3
+info:
+  title: CMDB IPAM / DCIM / 集成输出 API
+  version: 0.1.0
+  description: |
+    纯自研 CMDB 的 IPAM（网段/IP 管理）、DCIM（机柜 U 位管理）与对外集成输出（Oxidized 设备清单）契约。
+    与 openapi.yaml（模型/CI/发现/调和主契约）并列，前后端据此并行开发。
+servers:
+  - url: /
+    description: 相对路径（与后端同域部署）
+tags:
+  - name: ipam
+    description: IPAM：前缀（网段）树与 IP 地址管理
+  - name: dcim
+    description: DCIM：机柜 U 位与设备上下架
+  - name: integrations
+    description: 集成输出：向外部系统供给 CMDB 权威数据
+paths:
+  /api/v1/ipam/prefixes:
+    post:
+      tags: [ipam]
+      summary: 创建前缀（网段）
+      operationId: createIPPrefix
+      description: CIDR 会被掩码规范化（如 10.0.0.1/24 存为 10.0.0.0/24）；同级（同一父前缀下）网段不允许重叠
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IPPrefixCreateRequest'
+      responses:
+        '200':
+          description: 创建成功，返回前缀（含利用率）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IPPrefix'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    get:
+      tags: [ipam]
+      summary: 查询前缀列表
+      operationId: listIPPrefixes
+      parameters:
+        - name: keyword
+          in: query
+          description: 按 CIDR 或名称模糊过滤
+          required: false
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: 前缀分页列表（每项含利用率）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IPPrefixListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/v1/ipam/prefixes/{prefix_id}:
+    get:
+      tags: [ipam]
+      summary: 查询前缀详情（含子前缀）
+      operationId: getIPPrefix
+      parameters:
+        - $ref: '#/components/parameters/PrefixId'
+      responses:
+        '200':
+          description: 前缀详情，children 为直接子前缀列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IPPrefixDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/ipam/prefixes/{prefix_id}/allocate:
+    post:
+      tags: [ipam]
+      summary: 顺序分配空闲 IP
+      operationId: allocateIPs
+      description: 从前缀首个空闲 IP 起顺序分配 count 个（status=used）；空闲不足时整体失败，不产生部分分配
+      parameters:
+        - $ref: '#/components/parameters/PrefixId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IPAllocateRequest'
+      responses:
+        '200':
+          description: 分配成功，返回新登记的 IP 列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IPAddressListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/v1/ipam/ips:
+    post:
+      tags: [ipam]
+      summary: 登记 IP 地址
+      operationId: createIPAddress
+      description: IP 必须落在指定前缀网段内；同前缀内重复登记返回 409
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IPAddressCreateRequest'
+      responses:
+        '200':
+          description: 登记成功，返回 IP 记录
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IPAddress'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    get:
+      tags: [ipam]
+      summary: 查询 IP 列表
+      operationId: listIPAddresses
+      parameters:
+        - name: prefix_id
+          in: query
+          description: 按所属前缀过滤
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          description: 按状态过滤
+          required: false
+          schema:
+            type: string
+            enum: [used, reserved]
+        - name: keyword
+          in: query
+          description: 按 IP 或描述模糊过滤
+          required: false
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: IP 分页列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IPAddressListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/v1/ipam/ips/{ip_id}:
+    patch:
+      tags: [ipam]
+      summary: 更新 IP 登记信息（部分字段）
+      operationId: patchIPAddress
+      parameters:
+        - $ref: '#/components/parameters/IPId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IPAddressPatchRequest'
+      responses:
+        '200':
+          description: 更新成功，返回 IP 记录
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IPAddress'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/dcim/racks/{ci_id}/units:
+    get:
+      tags: [dcim]
+      summary: 查询机柜 U 位占用总览
+      operationId: getRackUnits
+      description: u_total 读机柜 CI 属性 u_total（默认 42）；units 覆盖全部 U 位，占用位带 occupant_ci_id/occupant_name
+      parameters:
+        - $ref: '#/components/parameters/RackCIId'
+      responses:
+        '200':
+          description: U 位总览
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RackUnits'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/dcim/racks/{ci_id}/mount:
+    post:
+      tags: [dcim]
+      summary: 设备上架（占用 U 位）
+      operationId: mountRackUnit
+      description: 把设备挂载到 [u_position, u_position+u_height) 区间；与既有设备区间重叠或重复上架返回 409
+      parameters:
+        - $ref: '#/components/parameters/RackCIId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RackMountRequest'
+      responses:
+        '200':
+          description: 上架成功，返回挂载记录
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RackMount'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/v1/dcim/racks/{ci_id}/unmount:
+    post:
+      tags: [dcim]
+      summary: 设备下架（释放 U 位）
+      operationId: unmountRackUnit
+      parameters:
+        - $ref: '#/components/parameters/RackCIId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RackUnmountRequest'
+      responses:
+        '200':
+          description: 下架成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    example: ok
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/integrations/oxidized/devices:
+    get:
+      tags: [integrations]
+      summary: 输出 Oxidized 设备清单
+      operationId: listOxidizedDevices
+      description: |
+        从 network_device 模型 CI（不含已退役）映射 Oxidized HTTP source 期望的设备清单形状，
+        Oxidized 侧将 source 指向本端点即可实现备份清单零手工维护（新设备入库即纳入、退役即移除）。
+        映射规则：name ← name/hostname/serial_no/mgmt_ip 首个非空，ip ← mgmt_ip，model ← model，group ← group（缺省 default）。
+      responses:
+        '200':
+          description: 设备清单（JSON 数组）
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OxidizedDevice'
+components:
+  parameters:
+    PrefixId:
+      name: prefix_id
+      in: path
+      description: 前缀 ID
+      required: true
+      schema:
+        type: string
+        format: uuid
+    IPId:
+      name: ip_id
+      in: path
+      description: IP 记录 ID
+      required: true
+      schema:
+        type: string
+        format: uuid
+    RackCIId:
+      name: ci_id
+      in: path
+      description: 机柜 CI ID（模型 code=rack 的 CI）
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Page:
+      name: page
+      in: query
+      description: 页码，从 1 开始
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: page_size
+      in: query
+      description: 每页条数
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 20
+  responses:
+    BadRequest:
+      description: 请求参数或校验规则不通过
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: 资源冲突（网段重叠/IP 重复/空闲不足/U 位重叠）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: 机器可读错误码
+          example: CONFLICT
+        message:
+          type: string
+          description: 人类可读错误信息
+        details:
+          type: object
+          additionalProperties: true
+          description: 逐字段校验错误等补充信息
+    IPUtilization:
+      type: object
+      required: [total_ips, used_ips, utilization]
+      description: 前缀利用率（按 host 位计算；IPv4 去掉网络/广播地址，/31 计 2、/32 计 1，IPv6 计 2^host 位）
+      properties:
+        total_ips:
+          type: string
+          description: 可用 IP 总数（十进制字符串——IPv6 大网段可能超出 int64，故以字符串承载防溢出）
+          example: "254"
+        used_ips:
+          type: integer
+          description: 已登记 IP 数（used+reserved）
+          example: 3
+        utilization:
+          type: number
+          description: 利用率百分比（0-100）
+          example: 1.18
+    IPPrefix:
+      type: object
+      required: [id, cidr, name, utilization, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        cidr:
+          type: string
+          description: 规范化 CIDR（掩码后的网络地址形式）
+          example: 10.0.0.0/24
+        name:
+          type: string
+          description: 网段名称
+          example: 生产业务网段
+        vlan_id:
+          type: integer
+          nullable: true
+          description: 关联 VLAN ID（1-4094）
+        description:
+          type: string
+          description: 用途说明
+        parent_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: 父前缀 ID（树形层级）
+        utilization:
+          $ref: '#/components/schemas/IPUtilization'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    IPPrefixDetail:
+      allOf:
+        - $ref: '#/components/schemas/IPPrefix'
+        - type: object
+          properties:
+            children:
+              type: array
+              description: 直接子前缀列表
+              items:
+                $ref: '#/components/schemas/IPPrefix'
+    IPPrefixCreateRequest:
+      type: object
+      required: [cidr, name]
+      properties:
+        cidr:
+          type: string
+          description: CIDR 网段（host 位会被掩码规范化）
+          example: 10.0.0.0/24
+        name:
+          type: string
+          example: 生产业务网段
+        vlan_id:
+          type: integer
+          minimum: 1
+          maximum: 4094
+        description:
+          type: string
+        parent_id:
+          type: string
+          format: uuid
+          description: 父前缀 ID；提供时本网段必须落在父前缀内
+    IPPrefixListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/IPPrefix'
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+    IPAllocateRequest:
+      type: object
+      required: [count]
+      properties:
+        count:
+          type: integer
+          minimum: 1
+          maximum: 1024
+          description: 分配数量（顺序取首个空闲起的 count 个）
+          example: 2
+        description:
+          type: string
+          description: 登记描述
+    IPAddress:
+      type: object
+      required: [id, prefix_id, ip, status, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        prefix_id:
+          type: string
+          format: uuid
+        ip:
+          type: string
+          description: IP 地址（规范化字符串）
+          example: 10.0.0.5
+        status:
+          type: string
+          enum: [used, reserved]
+          description: used 在用 / reserved 预留（空闲即未登记，不落库）
+        ci_id:
+          type: string
+          format: uuid
+          description: 关联 CI ID
+        description:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    IPAddressCreateRequest:
+      type: object
+      required: [prefix_id, ip]
+      properties:
+        prefix_id:
+          type: string
+          format: uuid
+        ip:
+          type: string
+          example: 10.0.0.5
+        status:
+          type: string
+          enum: [used, reserved]
+          default: used
+        ci_id:
+          type: string
+          format: uuid
+          description: 关联 CI ID（须为已存在的 CI）
+        description:
+          type: string
+    IPAddressPatchRequest:
+      type: object
+      description: 全字段可选，仅更新传入字段
+      properties:
+        status:
+          type: string
+          enum: [used, reserved]
+        ci_id:
+          type: string
+          format: uuid
+        description:
+          type: string
+    IPAddressListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/IPAddress'
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+      description: 列表查询返回完整分页结构；allocate 响应仅含 items
+    RackUnits:
+      type: object
+      required: [rack_id, u_total, units]
+      properties:
+        rack_id:
+          type: string
+          format: uuid
+          description: 机柜 CI ID
+        u_total:
+          type: integer
+          description: U 位总容量（机柜 CI 属性 u_total，默认 42）
+          example: 42
+        units:
+          type: array
+          items:
+            $ref: '#/components/schemas/RackUnit'
+    RackUnit:
+      type: object
+      required: [u]
+      properties:
+        u:
+          type: integer
+          description: U 位编号（从 1 开始）
+        occupant_ci_id:
+          type: string
+          format: uuid
+          description: 占用设备 CI ID（空闲位缺省）
+        occupant_name:
+          type: string
+          description: 占用设备显示名（name/hostname/serial_no 首个非空）
+    RackMount:
+      type: object
+      required: [id, rack_ci_id, device_ci_id, u_position, u_height, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        rack_ci_id:
+          type: string
+          format: uuid
+        device_ci_id:
+          type: string
+          format: uuid
+        u_position:
+          type: integer
+          description: 起始 U 位（从 1 开始）
+        u_height:
+          type: integer
+          description: 占 U 高度
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    RackMountRequest:
+      type: object
+      required: [ci_id, u_position, u_height]
+      properties:
+        ci_id:
+          type: string
+          format: uuid
+          description: 设备 CI ID
+        u_position:
+          type: integer
+          minimum: 1
+          example: 10
+        u_height:
+          type: integer
+          minimum: 1
+          example: 2
+    RackUnmountRequest:
+      type: object
+      required: [ci_id]
+      properties:
+        ci_id:
+          type: string
+          format: uuid
+          description: 设备 CI ID
+    OxidizedDevice:
+      type: object
+      required: [name, ip, model, group]
+      description: Oxidized HTTP source 设备条目
+      properties:
+        name:
+          type: string
+          description: 设备名
+          example: sw-core-01
+        ip:
+          type: string
+          description: 管理 IP（CI 属性 mgmt_ip）
+          example: 10.1.0.2
+        model:
+          type: string
+          description: 型号（CI 属性 model，供映射 Oxidized model）
+          example: CE6857-48S6Q-HI
+        group:
+          type: string
+          description: 分组（CI 属性 group，缺省 default）
+          example: default

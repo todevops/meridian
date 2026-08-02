@@ -1,0 +1,11 @@
+{
+  "code": "biz_app",
+  "name": "应用系统",
+  "attributes": [
+    { "code": "code", "name": "应用编码", "type": "string", "required": true, "unique": true, "source": "manual" },
+    { "code": "name", "name": "应用名称", "type": "string", "required": true, "source": "manual" },
+    { "code": "owner", "name": "负责人", "type": "string", "source": "manual" },
+    { "code": "level", "name": "等级", "type": "enum", "enum_values": ["L1", "L2", "L3"], "source": "manual" }
+  ],
+  "relations": []
+}

@@ -1,0 +1,10 @@
+{
+  "code": "room",
+  "name": "机房",
+  "attributes": [
+    { "code": "name", "name": "机房名称", "type": "string", "required": true, "source": "manual" },
+    { "code": "code", "name": "机房编码", "type": "string", "required": true, "unique": true, "source": "manual" },
+    { "code": "address", "name": "地址", "type": "string", "source": "manual" }
+  ],
+  "relations": []
+}

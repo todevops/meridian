@@ -1,0 +1,32 @@
+[
+  {
+    "InstanceId": "i-bp1d6ts040znvy1a1tw1",
+    "InstanceName": "ali-mall-front-01",
+    "Status": "Running",
+    "InstanceType": "ecs.g7.xlarge",
+    "InstanceChargeType": "PostPaid",
+    "PrivateIpAddress": { "IpAddress": ["10.30.1.21"] },
+    "ZoneId": "cn-hangzhou-i",
+    "Tags": {
+      "Tag": [
+        { "TagKey": "env", "TagValue": "prod" },
+        { "TagKey": "app", "TagValue": "mall-front" }
+      ]
+    }
+  },
+  {
+    "InstanceId": "i-bp1g8k2x7q0m3n9p4r5t",
+    "InstanceName": "ali-report-01",
+    "Status": "Stopped",
+    "InstanceType": "ecs.c7.2xlarge",
+    "InstanceChargeType": "PrePaid",
+    "PrivateIpAddress": { "IpAddress": ["10.30.1.22"] },
+    "ZoneId": "cn-hangzhou-j",
+    "Tags": {
+      "Tag": [
+        { "TagKey": "env", "TagValue": "staging" },
+        { "TagKey": "app", "TagValue": "report" }
+      ]
+    }
+  }
+]

@@ -1,0 +1,52 @@
+# 本地开发依赖编排：PostgreSQL / Redis / NATS JetStream
+# 使用：docker compose up -d（compose v2，无需 version 字段）
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cmdb
+      POSTGRES_PASSWORD: cmdb_dev_password
+      POSTGRES_DB: cmdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cmdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  nats:
+    image: nats:2.10-alpine
+    restart: unless-stopped
+    # -js 开启 JetStream，-sd 指定存储目录，-m 开启 8222 监控端口
+    command: ["-js", "-sd", "/data", "-m", "8222"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - natsdata:/data
+    healthcheck:
+      # alpine 镜像自带 busybox wget
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
+  natsdata:

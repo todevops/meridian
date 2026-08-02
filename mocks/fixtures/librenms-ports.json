@@ -1,0 +1,164 @@
+{
+  "bj-core-sw-01": [
+    {
+      "port_id": 101,
+      "device_id": 1,
+      "ifIndex": 1,
+      "ifName": "GE1/0/1",
+      "ifDescr": "GigabitEthernet1/0/1",
+      "ifType": "ethernetCsmacd",
+      "ifMtu": 1500,
+      "ifSpeed": 1000000000,
+      "ifOperStatus": "up",
+      "ifAdminStatus": "up",
+      "ifAlias": "to-bj-core-sw-02-GE1/0/1",
+      "ifPhysAddress": "04f9c81a0101"
+    },
+    {
+      "port_id": 102,
+      "device_id": 1,
+      "ifIndex": 2,
+      "ifName": "GE1/0/2",
+      "ifDescr": "GigabitEthernet1/0/2",
+      "ifType": "ethernetCsmacd",
+      "ifMtu": 1500,
+      "ifSpeed": 1000000000,
+      "ifOperStatus": "up",
+      "ifAdminStatus": "up",
+      "ifAlias": "to-bj-acc-sw-01-GE1/0/1",
+      "ifPhysAddress": "04f9c81a0102"
+    },
+    {
+      "port_id": 103,
+      "device_id": 1,
+      "ifIndex": 49,
+      "ifName": "XGE1/0/1",
+      "ifDescr": "XGigabitEthernet1/0/1",
+      "ifType": "ethernetCsmacd",
+      "ifMtu": 9000,
+      "ifSpeed": 10000000000,
+      "ifOperStatus": "up",
+      "ifAdminStatus": "up",
+      "ifAlias": "uplink-to-sh-dist-sw-01",
+      "ifPhysAddress": "04f9c81a0131"
+    },
+    {
+      "port_id": 104,
+      "device_id": 1,
+      "ifIndex": 54,
+      "ifName": "XGE1/0/6",
+      "ifDescr": "XGigabitEthernet1/0/6",
+      "ifType": "ethernetCsmacd",
+      "ifMtu": 9000,
+      "ifSpeed": 10000000000,
+      "ifOperStatus": "down",
+      "ifAdminStatus": "down",
+      "ifAlias": "预留端口",
+      "ifPhysAddress": "04f9c81a0136"
+    }
+  ],
+  "bj-core-sw-02": [
+    {
+      "port_id": 201,
+      "device_id": 2,
+      "ifIndex": 1,
+      "ifName": "GE1/0/1",
+      "ifDescr": "GigabitEthernet1/0/1",
+      "ifType": "ethernetCsmacd",
+      "ifMtu": 1500,
+      "ifSpeed": 1000000000,
+      "ifOperStatus": "up",
+      "ifAdminStatus": "up",
+      "ifAlias": "to-bj-core-sw-01-GE1/0/1",
+      "ifPhysAddress": "7cf90a2b0201"
+    },
+    {
+      "port_id": 202,
+      "device_id": 2,
+      "ifIndex": 25,
+      "ifName": "XGE1/0/25",
+      "ifDescr": "XGigabitEthernet1/0/25",
+      "ifType": "ethernetCsmacd",
+      "ifMtu": 9000,
+      "ifSpeed": 10000000000,
+      "ifOperStatus": "up",
+      "ifAdminStatus": "up",
+      "ifAlias": "uplink-to-isp",
+      "ifPhysAddress": "7cf90a2b0219"
+    },
+    {
+      "port_id": 203,
+      "device_id": 2,
+      "ifIndex": 26,
+      "ifName": "XGE1/0/26",
+      "ifDescr": "XGigabitEthernet1/0/26",
+      "ifType": "ethernetCsmacd",
+      "ifMtu": 9000,
+      "ifSpeed": 10000000000,
+      "ifOperStatus": "down",
+      "ifAdminStatus": "up",
+      "ifAlias": "链路故障演示",
+      "ifPhysAddress": "7cf90a2b021a"
+    }
+  ],
+  "sh-dist-sw-01": [
+    {
+      "port_id": 301,
+      "device_id": 3,
+      "ifIndex": 101,
+      "ifName": "Eth1/1",
+      "ifDescr": "Ethernet1/1",
+      "ifType": "ethernetCsmacd",
+      "ifMtu": 1500,
+      "ifSpeed": 1000000000,
+      "ifOperStatus": "up",
+      "ifAdminStatus": "up",
+      "ifAlias": "downlink-sh-srv-r750-01",
+      "ifPhysAddress": "00fcba3c0301"
+    },
+    {
+      "port_id": 302,
+      "device_id": 3,
+      "ifIndex": 149,
+      "ifName": "Eth1/49",
+      "ifDescr": "Ethernet1/49",
+      "ifType": "ethernetCsmacd",
+      "ifMtu": 9216,
+      "ifSpeed": 10000000000,
+      "ifOperStatus": "up",
+      "ifAdminStatus": "up",
+      "ifAlias": "uplink-to-bj-core-sw-01",
+      "ifPhysAddress": "00fcba3c0395"
+    }
+  ],
+  "bj-acc-sw-01": [
+    {
+      "port_id": 401,
+      "device_id": 4,
+      "ifIndex": 1,
+      "ifName": "GE1/0/1",
+      "ifDescr": "GigabitEthernet1/0/1",
+      "ifType": "ethernetCsmacd",
+      "ifMtu": 1500,
+      "ifSpeed": 1000000000,
+      "ifOperStatus": "up",
+      "ifAdminStatus": "up",
+      "ifAlias": "to-bj-core-sw-01-GE1/0/2",
+      "ifPhysAddress": "58696c0d0401"
+    },
+    {
+      "port_id": 402,
+      "device_id": 4,
+      "ifIndex": 2,
+      "ifName": "GE1/0/2",
+      "ifDescr": "GigabitEthernet1/0/2",
+      "ifType": "ethernetCsmacd",
+      "ifMtu": 1500,
+      "ifSpeed": 1000000000,
+      "ifOperStatus": "up",
+      "ifAdminStatus": "up",
+      "ifAlias": "downlink-bj-srv-dl380-01",
+      "ifPhysAddress": "58696c0d0402"
+    }
+  ]
+}

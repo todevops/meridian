@@ -1,0 +1,22 @@
+{
+  "code": "host",
+  "name": "主机",
+  "reconcile_keys": ["ident", "ip"],
+  "attributes": [
+    { "code": "ident", "name": "主机标识（调和辅助键）", "type": "string", "required": true, "source": "n9e" },
+    { "code": "ip", "name": "内网 IP", "type": "ip", "required": true, "source": "n9e" },
+    { "code": "host_type", "name": "主机类型", "type": "enum", "enum_values": ["physical", "virtual_machine", "cloud", "k8s_node", "unknown"], "required": false, "source": "manual" },
+    { "code": "os", "name": "操作系统", "type": "string", "source": "n9e" },
+    { "code": "cpu_num", "name": "CPU 核数", "type": "number", "source": "n9e" },
+    { "code": "arch", "name": "CPU 架构", "type": "string", "source": "n9e" },
+    { "code": "agent_version", "name": "采集器版本", "type": "string", "source": "n9e" },
+    { "code": "last_heartbeat_at", "name": "最近心跳时间", "type": "date", "source": "n9e" },
+    { "code": "biz_group", "name": "业务组", "type": "string", "source": "n9e" },
+    { "code": "tags", "name": "标签（逗号分隔）", "type": "string", "source": "n9e" },
+    { "code": "target_up", "name": "采集器在线", "type": "bool", "source": "n9e" }
+  ],
+  "relations": [
+    { "code": "runs_on", "name": "运行于", "target_model": "physical_server", "cardinality": "one_to_one", "direction": "outgoing" },
+    { "code": "instantiated_by", "name": "实例化于", "target_model": "virtual_machine", "cardinality": "one_to_one", "direction": "outgoing" }
+  ]
+}

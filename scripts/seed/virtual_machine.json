@@ -1,0 +1,14 @@
+{
+  "code": "virtual_machine",
+  "name": "虚拟机",
+  "attributes": [
+    { "code": "instance_uuid", "name": "实例 UUID", "type": "string", "required": true, "unique": true, "source": "vcenter" },
+    { "code": "name", "name": "虚拟机名称", "type": "string", "required": true, "source": "vcenter" },
+    { "code": "vcpu", "name": "vCPU 核数", "type": "number", "source": "vcenter" },
+    { "code": "memory_gb", "name": "内存(GB)", "type": "number", "source": "vcenter" },
+    { "code": "power_state", "name": "电源状态", "type": "enum", "enum_values": ["poweredOn", "poweredOff", "suspended"], "source": "vcenter" }
+  ],
+  "relations": [
+    { "code": "runs_on", "name": "运行于", "target_model": "physical_server", "cardinality": "one_to_one", "direction": "outgoing" }
+  ]
+}

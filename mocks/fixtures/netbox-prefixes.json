@@ -1,0 +1,42 @@
+[
+  {
+    "id": 1,
+    "prefix": "10.30.0.0/24",
+    "site": { "id": 1, "name": "北京亦庄机房", "slug": "bj-yz" },
+    "vlan": { "id": 1, "vid": 10, "name": "net-mgmt" },
+    "status": { "value": "active", "label": "Active" },
+    "role": { "id": 1, "name": "网络设备管理", "slug": "net-mgmt" },
+    "is_pool": false,
+    "description": "网络设备带内管理网段"
+  },
+  {
+    "id": 2,
+    "prefix": "10.30.1.0/24",
+    "site": { "id": 1, "name": "北京亦庄机房", "slug": "bj-yz" },
+    "vlan": { "id": 2, "vid": 20, "name": "server-service" },
+    "status": { "value": "active", "label": "Active" },
+    "role": { "id": 2, "name": "服务器业务", "slug": "server-service" },
+    "is_pool": false,
+    "description": "服务器业务网段"
+  },
+  {
+    "id": 3,
+    "prefix": "10.30.2.0/24",
+    "site": { "id": 1, "name": "北京亦庄机房", "slug": "bj-yz" },
+    "vlan": null,
+    "status": { "value": "active", "label": "Active" },
+    "role": { "id": 3, "name": "数据库", "slug": "database" },
+    "is_pool": false,
+    "description": "数据库与中间件网段"
+  },
+  {
+    "id": 4,
+    "prefix": "192.168.100.0/22",
+    "site": { "id": 2, "name": "上海张江机房", "slug": "sh-zj" },
+    "vlan": null,
+    "status": { "value": "active", "label": "Active" },
+    "role": { "id": 4, "name": "办公网", "slug": "office" },
+    "is_pool": false,
+    "description": "张江办公网（逐步回收）"
+  }
+]

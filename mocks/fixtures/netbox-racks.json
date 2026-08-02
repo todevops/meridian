@@ -1,0 +1,29 @@
+[
+  {
+    "id": 1,
+    "name": "BJ-YZ-A01",
+    "site": { "id": 1, "name": "北京亦庄机房", "slug": "bj-yz" },
+    "status": { "value": "active", "label": "Active" },
+    "facility_id": "A01",
+    "u_height": 42,
+    "description": "核心网络柜"
+  },
+  {
+    "id": 2,
+    "name": "BJ-YZ-A02",
+    "site": { "id": 1, "name": "北京亦庄机房", "slug": "bj-yz" },
+    "status": { "value": "active", "label": "Active" },
+    "facility_id": "A02",
+    "u_height": 42,
+    "description": "服务器柜"
+  },
+  {
+    "id": 3,
+    "name": "SH-ZJ-B01",
+    "site": { "id": 2, "name": "上海张江机房", "slug": "sh-zj" },
+    "status": { "value": "active", "label": "Active" },
+    "facility_id": "B01",
+    "u_height": 42,
+    "description": "张江综合柜"
+  }
+]

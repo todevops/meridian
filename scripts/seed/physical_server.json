@@ -1,0 +1,14 @@
+{
+  "code": "physical_server",
+  "name": "物理机",
+  "attributes": [
+    { "code": "serial_no", "name": "序列号", "type": "string", "required": true, "unique": true, "source": "ipmi" },
+    { "code": "asset_no", "name": "资产编号", "type": "string", "unique": true, "source": "manual" },
+    { "code": "model", "name": "型号", "type": "string", "source": "ipmi" },
+    { "code": "vendor", "name": "厂商", "type": "string", "source": "ipmi" },
+    { "code": "mgmt_ip", "name": "管理 IP", "type": "ip", "source": "manual" }
+  ],
+  "relations": [
+    { "code": "located_in", "name": "所在机柜", "target_model": "rack", "cardinality": "one_to_one", "direction": "outgoing" }
+  ]
+}

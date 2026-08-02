@@ -1,0 +1,97 @@
+[
+  {
+    "id": 1,
+    "name": "bj-core-sw-01",
+    "device_type": {
+      "id": 11,
+      "manufacturer": { "id": 1, "name": "Huawei", "slug": "huawei" },
+      "model": "CE6857-48S6CQ-EI",
+      "slug": "ce6857-48s6cq-ei"
+    },
+    "device_role": { "id": 1, "name": "核心交换机", "slug": "core-switch" },
+    "serial": "HW98A1B2345678",
+    "site": { "id": 1, "name": "北京亦庄机房", "slug": "bj-yz" },
+    "rack": { "id": 1, "name": "BJ-YZ-A01" },
+    "position": 40,
+    "face": { "value": "front", "label": "Front" },
+    "status": { "value": "active", "label": "Active" },
+    "primary_ip4": { "id": 2, "address": "10.30.0.2/24" },
+    "comments": "电商生产核心 A 节点"
+  },
+  {
+    "id": 2,
+    "name": "bj-core-sw-02",
+    "device_type": {
+      "id": 12,
+      "manufacturer": { "id": 2, "name": "H3C", "slug": "h3c" },
+      "model": "S6520X-30QC-EI",
+      "slug": "s6520x-30qc-ei"
+    },
+    "device_role": { "id": 1, "name": "核心交换机", "slug": "core-switch" },
+    "serial": "H3C2198A0F3",
+    "site": { "id": 1, "name": "北京亦庄机房", "slug": "bj-yz" },
+    "rack": { "id": 1, "name": "BJ-YZ-A01" },
+    "position": 38,
+    "face": { "value": "front", "label": "Front" },
+    "status": { "value": "active", "label": "Active" },
+    "primary_ip4": { "id": 3, "address": "10.30.0.3/24" },
+    "comments": "电商生产核心 B 节点"
+  },
+  {
+    "id": 3,
+    "name": "sh-dist-sw-01",
+    "device_type": {
+      "id": 13,
+      "manufacturer": { "id": 3, "name": "Cisco", "slug": "cisco" },
+      "model": "N9K-C93180YC-EX",
+      "slug": "n9k-c93180yc-ex"
+    },
+    "device_role": { "id": 2, "name": "汇聚交换机", "slug": "dist-switch" },
+    "serial": "FDO23191A2B",
+    "site": { "id": 2, "name": "上海张江机房", "slug": "sh-zj" },
+    "rack": { "id": 3, "name": "SH-ZJ-B01" },
+    "position": 40,
+    "face": { "value": "front", "label": "Front" },
+    "status": { "value": "active", "label": "Active" },
+    "primary_ip4": { "id": 4, "address": "10.30.0.4/24" },
+    "comments": "张江汇聚"
+  },
+  {
+    "id": 4,
+    "name": "bj-srv-dl380-01",
+    "device_type": {
+      "id": 14,
+      "manufacturer": { "id": 4, "name": "HPE", "slug": "hpe" },
+      "model": "ProLiant DL380 Gen10",
+      "slug": "proliant-dl380-gen10"
+    },
+    "device_role": { "id": 3, "name": "服务器", "slug": "server" },
+    "serial": "CZJ9340M7N",
+    "site": { "id": 1, "name": "北京亦庄机房", "slug": "bj-yz" },
+    "rack": { "id": 2, "name": "BJ-YZ-A02" },
+    "position": 20,
+    "face": { "value": "front", "label": "Front" },
+    "status": { "value": "active", "label": "Active" },
+    "primary_ip4": { "id": 5, "address": "10.30.1.15/24" },
+    "comments": "vSphere 宿主机 01"
+  },
+  {
+    "id": 5,
+    "name": "sh-srv-r750-01",
+    "device_type": {
+      "id": 15,
+      "manufacturer": { "id": 5, "name": "Dell", "slug": "dell" },
+      "model": "PowerEdge R750",
+      "slug": "poweredge-r750"
+    },
+    "device_role": { "id": 3, "name": "服务器", "slug": "server" },
+    "serial": "9XK2W63",
+    "site": { "id": 2, "name": "上海张江机房", "slug": "sh-zj" },
+    "rack": { "id": 3, "name": "SH-ZJ-B01" },
+    "position": 22,
+    "face": { "value": "front", "label": "Front" },
+    "status": { "value": "active", "label": "Active" },
+    "primary_ip4": { "id": 6, "address": "10.30.1.16/24" },
+    "comments": "灾备虚拟化宿主机"
+  }
+]

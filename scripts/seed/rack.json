@@ -1,0 +1,12 @@
+{
+  "code": "rack",
+  "name": "机柜",
+  "attributes": [
+    { "code": "name", "name": "机柜编号", "type": "string", "required": true, "source": "manual" },
+    { "code": "u_capacity", "name": "U 位容量", "type": "number", "source": "manual" },
+    { "code": "power_capacity_kw", "name": "电力容量(kW)", "type": "number", "source": "manual" }
+  ],
+  "relations": [
+    { "code": "located_in", "name": "所在机房", "target_model": "room", "cardinality": "one_to_one", "direction": "outgoing" }
+  ]
+}

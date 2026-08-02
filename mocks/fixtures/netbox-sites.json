@@ -1,0 +1,20 @@
+[
+  {
+    "id": 1,
+    "name": "北京亦庄机房",
+    "slug": "bj-yz",
+    "status": { "value": "active", "label": "Active" },
+    "region": { "id": 1, "name": "华北", "slug": "north-cn" },
+    "facility": "亦庄 IDC 3 号楼",
+    "description": "生产主机房"
+  },
+  {
+    "id": 2,
+    "name": "上海张江机房",
+    "slug": "sh-zj",
+    "status": { "value": "active", "label": "Active" },
+    "region": { "id": 2, "name": "华东", "slug": "east-cn" },
+    "facility": "张江 IDC B 区",
+    "description": "灾备与办公机房"
+  }
+]
