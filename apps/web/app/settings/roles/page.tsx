@@ -19,7 +19,14 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import {
   ApiError,
   createRole,
@@ -43,7 +50,10 @@ export default function RolesPage() {
     setLoading(true)
     setError(null)
     try {
-      const [roleList, permList] = await Promise.all([listRoles(), listPermissions()])
+      const [roleList, permList] = await Promise.all([
+        listRoles(),
+        listPermissions(),
+      ])
       setRoles(roleList.items)
       setPermissions(permList.items)
     } catch (err) {
@@ -58,7 +68,12 @@ export default function RolesPage() {
   }, [load])
 
   async function onDelete(role: Role) {
-    if (!window.confirm(`确认删除角色「${role.name}」(${role.code})？此操作不可恢复。`)) return
+    if (
+      !window.confirm(
+        `确认删除角色「${role.name}」(${role.code})？此操作不可恢复。`
+      )
+    )
+      return
     try {
       await deleteRole(role.id)
       load()
@@ -67,14 +82,17 @@ export default function RolesPage() {
     }
   }
 
-  const permName = (code: string) => permissions.find((p) => p.code === code)?.name ?? code
+  const permName = (code: string) =>
+    permissions.find((p) => p.code === code)?.name ?? code
 
   return (
     <div className="flex flex-col gap-4 p-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold">角色管理</h1>
-          <p className="text-sm text-muted-foreground">角色是权限点的集合，用户经角色获得权限</p>
+          <p className="text-sm text-muted-foreground">
+            角色是权限点的集合，用户经角色获得权限
+          </p>
         </div>
         <Button
           onClick={() => {
@@ -131,7 +149,9 @@ export default function RolesPage() {
                   <TableCell>
                     <div>{role.name}</div>
                     {role.description && (
-                      <div className="text-xs text-muted-foreground">{role.description}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {role.description}
+                      </div>
                     )}
                   </TableCell>
                   <TableCell>
@@ -175,7 +195,10 @@ export default function RolesPage() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={5} className="py-10 text-center text-muted-foreground">
+                <TableCell
+                  colSpan={5}
+                  className="py-10 text-center text-muted-foreground"
+                >
                   暂无角色
                 </TableCell>
               </TableRow>
@@ -204,7 +227,13 @@ interface RoleFormDialogProps {
   onSaved: () => void
 }
 
-function RoleFormDialog({ open, onOpenChange, role, permissions, onSaved }: RoleFormDialogProps) {
+function RoleFormDialog({
+  open,
+  onOpenChange,
+  role,
+  permissions,
+  onSaved,
+}: RoleFormDialogProps) {
   const isEdit = role !== null
   // 内置 admin 角色权限点锁定（服务端同样强制），防止把管理员锁死
   const permissionsLocked = isEdit && role.code === "admin"
@@ -226,7 +255,9 @@ function RoleFormDialog({ open, onOpenChange, role, permissions, onSaved }: Role
   }, [open, role])
 
   function toggle(perm: string, checked: boolean) {
-    setSelected((prev) => (checked ? [...prev, perm] : prev.filter((p) => p !== perm)))
+    setSelected((prev) =>
+      checked ? [...prev, perm] : prev.filter((p) => p !== perm)
+    )
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -259,7 +290,9 @@ function RoleFormDialog({ open, onOpenChange, role, permissions, onSaved }: Role
       onOpenChange(false)
       onSaved()
     } catch (err) {
-      setSubmitError(err instanceof ApiError ? err.message : "保存失败，请稍后重试")
+      setSubmitError(
+        err instanceof ApiError ? err.message : "保存失败，请稍后重试"
+      )
     } finally {
       setSubmitting(false)
     }
@@ -269,7 +302,9 @@ function RoleFormDialog({ open, onOpenChange, role, permissions, onSaved }: Role
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{isEdit ? `编辑角色：${role.name}` : "新建角色"}</DialogTitle>
+          <DialogTitle>
+            {isEdit ? `编辑角色：${role.name}` : "新建角色"}
+          </DialogTitle>
           <DialogDescription>
             {permissionsLocked
               ? "内置 admin 角色的权限点不可修改，仅可调整名称与描述。"
@@ -289,7 +324,11 @@ function RoleFormDialog({ open, onOpenChange, role, permissions, onSaved }: Role
                 onChange={(e) => setCode(e.target.value)}
                 placeholder="如：netops"
               />
-              {isEdit && <p className="text-xs text-muted-foreground">编码创建后不可修改</p>}
+              {isEdit && (
+                <p className="text-xs text-muted-foreground">
+                  编码创建后不可修改
+                </p>
+              )}
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="role-name">
@@ -327,7 +366,9 @@ function RoleFormDialog({ open, onOpenChange, role, permissions, onSaved }: Role
                     onChange={(e) => toggle(perm.code, e.target.checked)}
                   />
                   {perm.name}
-                  <span className="text-xs text-muted-foreground">({perm.code})</span>
+                  <span className="text-xs text-muted-foreground">
+                    ({perm.code})
+                  </span>
                 </label>
               ))}
             </div>
@@ -338,7 +379,11 @@ function RoleFormDialog({ open, onOpenChange, role, permissions, onSaved }: Role
             </p>
           )}
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
               取消
             </Button>
             <Button type="submit" disabled={submitting}>

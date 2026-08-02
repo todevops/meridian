@@ -12,7 +12,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"cmdb/server/internal/store"
+	"meridian/server/internal/store"
 )
 
 // setup 打开独立内存库，预置 rack / server 两个模型。

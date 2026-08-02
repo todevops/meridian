@@ -22,7 +22,7 @@ echo "    服务已就绪"
 # 业务接口需认证：先登录获取会话 cookie。
 # shellcheck source=auth-login.sh
 source "${SCRIPT_DIR}/auth-login.sh"
-cmdb_login
+meridian_login
 
 shopt -s nullglob
 seed_files=("${SEED_DIR}"/*.json)
@@ -37,14 +37,14 @@ for f in "${seed_files[@]}"; do
   [[ -n "${code}" ]] || { echo "错误：无法从 ${f} 解析模型编码" >&2; exit 1; }
 
   # 已存在则跳过：按 keyword 预筛后，在结果中精确匹配 "code":"<code>"。
-  if curl -fsS -b "${CMDB_COOKIE_JAR}" "${BASE_URL}/api/v1/models?keyword=${code}&page_size=200" \
+  if curl -fsS -b "${MERIDIAN_COOKIE_JAR}" "${BASE_URL}/api/v1/models?keyword=${code}&page_size=200" \
       | grep -E "\"code\"[[:space:]]*:[[:space:]]*\"${code}\"" >/dev/null; then
     echo "--- 跳过 ${code}（已存在）"
     skipped=$((skipped + 1))
     continue
   fi
 
-  resp="$(curl -sS -b "${CMDB_COOKIE_JAR}" -w $'\n%{http_code}' -X POST "${BASE_URL}/api/v1/models" \
+  resp="$(curl -sS -b "${MERIDIAN_COOKIE_JAR}" -w $'\n%{http_code}' -X POST "${BASE_URL}/api/v1/models" \
     -H 'Content-Type: application/json' \
     --data-binary "@${f}")"
   http_code="${resp##*$'\n'}"

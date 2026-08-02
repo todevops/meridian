@@ -1,4 +1,4 @@
-// CMDB 会话令牌解析：优先静态 CMDB_TOKEN，否则用用户名密码登录换取。
+// CMDB 会话令牌解析：优先静态 MERIDIAN_TOKEN，否则用用户名密码登录换取。
 package record
 
 import (
@@ -11,14 +11,14 @@ import (
 )
 
 // ResolveCMDBToken 按环境变量解析 CMDB Bearer 令牌：
-// CMDB_TOKEN 非空直接返回；否则若 CMDB_USERNAME 与 CMDB_PASSWORD 均非空，
+// MERIDIAN_TOKEN 非空直接返回；否则若 MERIDIAN_USERNAME 与 MERIDIAN_PASSWORD 均非空，
 // 调 POST {apiURL}/api/v1/auth/login 登录换取 token；三者皆空返回空串（无认证环境）。
 func ResolveCMDBToken(ctx context.Context, apiURL string) (string, error) {
-	if t := strings.TrimSpace(os.Getenv("CMDB_TOKEN")); t != "" {
+	if t := strings.TrimSpace(os.Getenv("MERIDIAN_TOKEN")); t != "" {
 		return t, nil
 	}
-	user := strings.TrimSpace(os.Getenv("CMDB_USERNAME"))
-	pass := os.Getenv("CMDB_PASSWORD")
+	user := strings.TrimSpace(os.Getenv("MERIDIAN_USERNAME"))
+	pass := os.Getenv("MERIDIAN_PASSWORD")
 	if user == "" || pass == "" {
 		return "", nil
 	}

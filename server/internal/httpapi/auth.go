@@ -5,8 +5,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"cmdb/server/internal/auth"
-	"cmdb/server/internal/store"
+	"meridian/server/internal/auth"
+	"meridian/server/internal/store"
 )
 
 type loginRequest struct {

@@ -18,9 +18,22 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import {
   ApiError,
   createUser,
@@ -56,7 +69,11 @@ export default function UsersPage() {
     setError(null)
     try {
       const [users, roleList] = await Promise.all([
-        listUsers({ keyword: debounced || undefined, page, page_size: PAGE_SIZE }),
+        listUsers({
+          keyword: debounced || undefined,
+          page,
+          page_size: PAGE_SIZE,
+        }),
         listRoles(),
       ])
       setData(users)
@@ -79,7 +96,9 @@ export default function UsersPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold">用户管理</h1>
-          <p className="text-sm text-muted-foreground">系统账号的新建、角色分配、启停与密码重置</p>
+          <p className="text-sm text-muted-foreground">
+            系统账号的新建、角色分配、启停与密码重置
+          </p>
         </div>
         <Button
           onClick={() => {
@@ -162,7 +181,9 @@ export default function UsersPage() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={user.status === "active" ? "default" : "outline"}>
+                    <Badge
+                      variant={user.status === "active" ? "default" : "outline"}
+                    >
                       {user.status === "active" ? "在用" : "停用"}
                     </Badge>
                   </TableCell>
@@ -185,7 +206,10 @@ export default function UsersPage() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
+                <TableCell
+                  colSpan={6}
+                  className="py-10 text-center text-muted-foreground"
+                >
                   暂无用户
                 </TableCell>
               </TableRow>
@@ -199,7 +223,12 @@ export default function UsersPage() {
           <span>
             第 {data.page} / {totalPages} 页，共 {data.total} 条
           </span>
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page <= 1}
+            onClick={() => setPage(page - 1)}
+          >
             上一页
           </Button>
           <Button
@@ -233,7 +262,13 @@ interface UserFormDialogProps {
   onSaved: () => void
 }
 
-function UserFormDialog({ open, onOpenChange, user, roles, onSaved }: UserFormDialogProps) {
+function UserFormDialog({
+  open,
+  onOpenChange,
+  user,
+  roles,
+  onSaved,
+}: UserFormDialogProps) {
   const isEdit = user !== null
   const [username, setUsername] = useState("")
   const [displayName, setDisplayName] = useState("")
@@ -255,7 +290,9 @@ function UserFormDialog({ open, onOpenChange, user, roles, onSaved }: UserFormDi
   }, [open, user])
 
   function toggleRole(code: string, checked: boolean) {
-    setSelectedRoles((prev) => (checked ? [...prev, code] : prev.filter((c) => c !== code)))
+    setSelectedRoles((prev) =>
+      checked ? [...prev, code] : prev.filter((c) => c !== code)
+    )
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -296,7 +333,9 @@ function UserFormDialog({ open, onOpenChange, user, roles, onSaved }: UserFormDi
       onOpenChange(false)
       onSaved()
     } catch (err) {
-      setSubmitError(err instanceof ApiError ? err.message : "保存失败，请稍后重试")
+      setSubmitError(
+        err instanceof ApiError ? err.message : "保存失败，请稍后重试"
+      )
     } finally {
       setSubmitting(false)
     }
@@ -306,10 +345,15 @@ function UserFormDialog({ open, onOpenChange, user, roles, onSaved }: UserFormDi
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{isEdit ? `编辑用户：${user.username}` : "新建用户"}</DialogTitle>
+          <DialogTitle>
+            {isEdit ? `编辑用户：${user.username}` : "新建用户"}
+          </DialogTitle>
           <DialogDescription>
             {isEdit
-              ? "可修改显示名、重置密码" + (user.is_builtin ? "；内置账号的角色与状态不可修改。" : "、分配角色与启停账号。")
+              ? "可修改显示名、重置密码" +
+                (user.is_builtin
+                  ? "；内置账号的角色与状态不可修改。"
+                  : "、分配角色与启停账号。")
               : "创建后可登录系统，权限由所分配角色决定。"}
           </DialogDescription>
         </DialogHeader>
@@ -326,7 +370,11 @@ function UserFormDialog({ open, onOpenChange, user, roles, onSaved }: UserFormDi
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="登录账号，至少 2 个字符"
               />
-              {isEdit && <p className="text-xs text-muted-foreground">用户名创建后不可修改</p>}
+              {isEdit && (
+                <p className="text-xs text-muted-foreground">
+                  用户名创建后不可修改
+                </p>
+              )}
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="user-display-name">
@@ -360,13 +408,20 @@ function UserFormDialog({ open, onOpenChange, user, roles, onSaved }: UserFormDi
                 <Label>角色分配</Label>
                 <div className="flex flex-wrap gap-x-4 gap-y-2 rounded-lg border p-3">
                   {roles.map((role) => (
-                    <label key={role.code} className="flex cursor-pointer items-center gap-1.5 text-sm">
+                    <label
+                      key={role.code}
+                      className="flex cursor-pointer items-center gap-1.5 text-sm"
+                    >
                       <Checkbox
                         checked={selectedRoles.includes(role.code)}
-                        onChange={(e) => toggleRole(role.code, e.target.checked)}
+                        onChange={(e) =>
+                          toggleRole(role.code, e.target.checked)
+                        }
                       />
                       {role.name}
-                      <span className="text-xs text-muted-foreground">({role.code})</span>
+                      <span className="text-xs text-muted-foreground">
+                        ({role.code})
+                      </span>
                     </label>
                   ))}
                 </div>
@@ -374,9 +429,14 @@ function UserFormDialog({ open, onOpenChange, user, roles, onSaved }: UserFormDi
               {isEdit && (
                 <div className="flex flex-col gap-1.5">
                   <Label>账号状态</Label>
-                  <Select value={status} onValueChange={(v) => v && setStatus(v as UserStatus)}>
+                  <Select
+                    value={status}
+                    onValueChange={(v) => v && setStatus(v as UserStatus)}
+                  >
                     <SelectTrigger>
-                      <SelectValue>{(v: UserStatus) => (v === "active" ? "在用" : "停用")}</SelectValue>
+                      <SelectValue>
+                        {(v: UserStatus) => (v === "active" ? "在用" : "停用")}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="active">在用</SelectItem>
@@ -393,7 +453,11 @@ function UserFormDialog({ open, onOpenChange, user, roles, onSaved }: UserFormDi
             </p>
           )}
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
               取消
             </Button>
             <Button type="submit" disabled={submitting}>

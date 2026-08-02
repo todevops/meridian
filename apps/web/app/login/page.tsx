@@ -8,13 +8,24 @@ import { Database as DatabaseIcon } from "lucide-react"
 
 import { ApiError, login } from "@/lib/api"
 import { Button } from "@workspace/ui/components/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
 /** 只允许站内绝对路径，防止开放重定向 */
 function safeRedirect(raw: string | null): string {
-  if (raw && raw.startsWith("/") && !raw.startsWith("//") && !raw.startsWith("/login")) {
+  if (
+    raw &&
+    raw.startsWith("/") &&
+    !raw.startsWith("//") &&
+    !raw.startsWith("/login")
+  ) {
     return raw
   }
   return "/"

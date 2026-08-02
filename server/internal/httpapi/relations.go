@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
-	"cmdb/server/internal/store"
+	"meridian/server/internal/store"
 )
 
 type ciRelationCreateRequest struct {

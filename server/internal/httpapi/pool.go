@@ -10,9 +10,9 @@ import (
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
-	"cmdb/server/internal/reconcile"
-	"cmdb/server/internal/store"
-	"cmdb/server/internal/validation"
+	"meridian/server/internal/reconcile"
+	"meridian/server/internal/store"
+	"meridian/server/internal/validation"
 )
 
 // poolConfirmRequest 与 DiscoveryPoolConfirmRequest 对应：全字段可选，

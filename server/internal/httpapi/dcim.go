@@ -7,7 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"cmdb/server/internal/dcim"
+	"meridian/server/internal/dcim"
 )
 
 // mountRequest 与 RackMountRequest 对应。

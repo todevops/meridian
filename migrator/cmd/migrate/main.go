@@ -4,10 +4,10 @@
 //
 //	NETBOX_API_URL  NetBox API 地址（必填，如 http://localhost:19092 或 mock :19002）
 //	NETBOX_TOKEN    NetBox API Token（必填，非空）
-//	CMDB_API_URL    CMDB API 地址（默认 http://localhost:8081）
-//	CMDB_TOKEN      CMDB Bearer 令牌（可选；与账号密码二选一）
-//	CMDB_USERNAME   CMDB 登录账号（可选，需与 CMDB_PASSWORD 成对；服务端启用认证时使用）
-//	CMDB_PASSWORD   CMDB 登录密码（可选）
+//	MERIDIAN_API_URL    CMDB API 地址（默认 http://localhost:8081）
+//	MERIDIAN_TOKEN      CMDB Bearer 令牌（可选；与账号密码二选一）
+//	MERIDIAN_USERNAME   CMDB 登录账号（可选，需与 MERIDIAN_PASSWORD 成对；服务端启用认证时使用）
+//	MERIDIAN_PASSWORD   CMDB 登录密码（可选）
 //	REPORT_PATH     迁移报告输出路径（默认 ./migration-report.json）
 //
 // 退出码：0 = 迁移跑完（单条失败见报告）；1 = 致命错误（配置缺失/登录失败/模型确保失败/报告写入失败）。
@@ -29,7 +29,7 @@ import (
 func main() {
 	netboxURL := os.Getenv("NETBOX_API_URL")
 	netboxToken := os.Getenv("NETBOX_TOKEN")
-	cmdbURL := getEnv("CMDB_API_URL", "http://localhost:8081")
+	cmdbURL := getEnv("MERIDIAN_API_URL", "http://localhost:8081")
 	reportPath := getEnv("REPORT_PATH", "./migration-report.json")
 
 	if netboxURL == "" || netboxToken == "" {
@@ -41,9 +41,9 @@ func main() {
 
 	cmClient := cmdb.NewClient(cmdbURL)
 	// CMDB 认证可选：直连令牌优先，否则账号密码登录；都未配置则匿名（适用于未启用认证的服务端）。
-	if token := os.Getenv("CMDB_TOKEN"); token != "" {
+	if token := os.Getenv("MERIDIAN_TOKEN"); token != "" {
 		cmClient.SetToken(token)
-	} else if user, pass := os.Getenv("CMDB_USERNAME"), os.Getenv("CMDB_PASSWORD"); user != "" && pass != "" {
+	} else if user, pass := os.Getenv("MERIDIAN_USERNAME"), os.Getenv("MERIDIAN_PASSWORD"); user != "" && pass != "" {
 		if err := cmClient.Login(ctx, user, pass); err != nil {
 			log.Fatalf("CMDB 认证失败: %v", err)
 		}

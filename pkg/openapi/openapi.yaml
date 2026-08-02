@@ -36,7 +36,7 @@ paths:
       summary: 用户名密码登录
       operationId: login
       security: []
-      description: 校验通过后签发 JWT,写入 httpOnly cookie(cmdb_token),同时返回当前用户信息;客户端也可从响应体取 token 走 Bearer 方式
+      description: 校验通过后签发 JWT,写入 httpOnly cookie(meridian_token),同时返回当前用户信息;客户端也可从响应体取 token 走 Bearer 方式
       requestBody:
         required: true
         content:
@@ -407,7 +407,7 @@ paths:
   /api/v1/cis:
     get:
       tags: [cis]
-      summary: 查询 CI 列表（支持模型过滤与分页）
+      summary: 查询 CI 列表（支持模型过滤、关键字搜索与分页）
       operationId: listCIs
       parameters:
         - name: model_id
@@ -424,6 +424,12 @@ paths:
           schema:
             type: string
             enum: [discovered, active, retired]
+        - name: keyword
+          in: query
+          description: 全文关键字（匹配全部属性值，大小写不敏感）
+          required: false
+          schema:
+            type: string
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/PageSize'
       responses:
@@ -698,6 +704,40 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+  /api/v1/search:
+    get:
+      tags: [cis]
+      summary: 全局全文搜索
+      operationId: globalSearch
+      description: 跨模型、CI、IPAM 前缀/IP 的统一搜索入口（landing 页全局搜索框）。结果按资源类型分组，每组上限由 limit 控制；无对应权限点的分组自动省略（如用户无 ipam:read 则不返回 IPAM 组）
+      parameters:
+        - name: q
+          in: query
+          description: 搜索关键字（大小写不敏感，子串匹配）
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - name: limit
+          in: query
+          description: 每组返回上限，默认 10、最大 50
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        '200':
+          description: 分组搜索结果（仅返回非空分组）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
   /api/v1/dcim/overview:
     get:
       tags: [dcim]
@@ -720,7 +760,7 @@ components:
     cookieAuth:
       type: apiKey
       in: cookie
-      name: cmdb_token
+      name: meridian_token
       description: 登录成功后由服务端写入的 httpOnly JWT 会话 cookie
     bearerAuth:
       type: http
@@ -1023,6 +1063,55 @@ components:
         description:
           type: string
           example: 查询 CI 列表、详情与关系
+    SearchItem:
+      type: object
+      required: [kind, id, title, subtitle]
+      properties:
+        kind:
+          type: string
+          enum: [model, ci, ipam_prefix, ipam_ip]
+          description: 资源类型
+        id:
+          type: string
+          description: 资源 ID（CI 为 CI ID）
+        title:
+          type: string
+          description: 主显示名（如主机名、机柜编号、模型名）
+        subtitle:
+          type: string
+          description: 辅助信息（如所属模型、编码、CIDR）
+        matched:
+          type: string
+          description: 命中说明（如匹配到的属性 key=value），可能为空
+        model_code:
+          type: string
+          description: 仅 kind=ci 时返回，所属模型编码（前端据此决定跳转目标）
+    SearchGroup:
+      type: object
+      required: [kind, label, items]
+      properties:
+        kind:
+          type: string
+          enum: [models, cis, ipam]
+          description: 分组标识
+        label:
+          type: string
+          description: 分组显示名（如 模型 / CI 实例 / IPAM）
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchItem'
+    SearchResponse:
+      type: object
+      required: [query, groups]
+      properties:
+        query:
+          type: string
+        groups:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchGroup'
+          description: 仅包含非空分组
     DCIMRoomStat:
       type: object
       required: [room_id, name, rack_count, u_total, u_used, power_capacity_kw]

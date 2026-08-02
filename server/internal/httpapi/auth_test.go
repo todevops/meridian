@@ -12,9 +12,9 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"cmdb/server/internal/auth"
-	"cmdb/server/internal/discovery"
-	"cmdb/server/internal/store"
+	"meridian/server/internal/auth"
+	"meridian/server/internal/discovery"
+	"meridian/server/internal/store"
 )
 
 // setupAuthAPI 打开独立内存库、构建完整路由并返回 admin 令牌。

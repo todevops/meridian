@@ -6,8 +6,8 @@ import (
 	"log"
 	"time"
 
-	"cmdb/server/internal/discovery"
-	"cmdb/server/internal/reconcile"
+	"meridian/server/internal/discovery"
+	"meridian/server/internal/reconcile"
 )
 
 // DefaultInterval 是默认拉取间隔（15 分钟，与方案文档建议一致）。

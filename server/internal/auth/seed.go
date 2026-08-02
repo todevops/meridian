@@ -7,7 +7,7 @@ import (
 
 	"gorm.io/gorm"
 
-	"cmdb/server/internal/store"
+	"meridian/server/internal/store"
 )
 
 // Seed 幂等初始化认证数据：

@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"cmdb/server/internal/store"
+	"meridian/server/internal/store"
 )
 
 // oxidizedDevice 是 Oxidized HTTP source 期望的设备条目形状。

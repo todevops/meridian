@@ -7,8 +7,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"cmdb/server/internal/ipam"
-	"cmdb/server/internal/store"
+	"meridian/server/internal/ipam"
+	"meridian/server/internal/store"
 )
 
 // prefixCreateRequest 与 IPPrefixCreateRequest 对应。

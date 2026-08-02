@@ -13,9 +13,9 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"cmdb/server/internal/auth"
-	"cmdb/server/internal/discovery"
-	"cmdb/server/internal/store"
+	"meridian/server/internal/auth"
+	"meridian/server/internal/discovery"
+	"meridian/server/internal/store"
 )
 
 // setupRelations 构建含 room/rack 模型（located_in one_to_one）的测试环境。

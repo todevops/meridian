@@ -4,14 +4,15 @@ package httpapi
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
-	"cmdb/server/internal/reconcile"
-	"cmdb/server/internal/store"
-	"cmdb/server/internal/validation"
+	"meridian/server/internal/reconcile"
+	"meridian/server/internal/store"
+	"meridian/server/internal/validation"
 )
 
 // ciCreateRequest 与 CICreateRequest 对应。
@@ -49,6 +50,10 @@ func (s *Server) listCIs(c *gin.Context) {
 			return
 		}
 		q = q.Where("status = ?", status)
+	}
+	// 全文关键字：匹配全部属性值（大小写不敏感）。
+	if keyword := strings.TrimSpace(c.Query("keyword")); keyword != "" {
+		q = ciKeywordScope(q, keyword)
 	}
 	var total int64
 	if err := q.Count(&total).Error; err != nil {

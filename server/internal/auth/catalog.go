@@ -97,8 +97,8 @@ var builtinRoles = []builtinRole{
 	{"viewer", "只读", "仅查询模型、CI、IPAM/DCIM 与执行调和预览", []string{
 		PermModelRead, PermCIRead, PermDiscoveryRead, PermIPAMRead, PermDCIMRead,
 	}},
-	{"collector", "采集器", "仅供采集器服务账号上报发现记录", []string{
-		PermDiscoveryWrite,
+	{"collector", "采集器", "仅供采集器服务账号上报发现记录、确保模型配置", []string{
+		PermModelRead, PermModelWrite, PermDiscoveryWrite,
 	}},
 }
 

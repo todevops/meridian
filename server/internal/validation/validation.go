@@ -14,7 +14,7 @@ import (
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
-	"cmdb/server/internal/store"
+	"meridian/server/internal/store"
 )
 
 // FieldErrors 为逐字段校验错误，键为属性编码，值为错误说明。

@@ -1,4 +1,4 @@
-# CMDB Mock 平台（mocks）
+# Meridian Mock 平台（mocks）
 
 二期并行开发的官方接口 mock 平台：单二进制 `mockd` 并行启动 6 个 mock 系统，
 数据全部来自 `fixtures/*.json`（内嵌进二进制，任意目录可运行），零三方依赖。

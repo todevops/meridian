@@ -9,10 +9,10 @@
 //
 // 环境变量（默认值指向 mock 平台约定端口）：
 //
-//	CMDB_API_URL        CMDB API 地址（默认 http://localhost:8080）
-//	CMDB_TOKEN          CMDB Bearer 令牌（可选；优先级高于账密登录）
-//	CMDB_USERNAME       CMDB 登录用户名（与 CMDB_PASSWORD 配合换 token）
-//	CMDB_PASSWORD       CMDB 登录密码
+//	MERIDIAN_API_URL        CMDB API 地址（默认 http://localhost:8080）
+//	MERIDIAN_TOKEN          CMDB Bearer 令牌（可选；优先级高于账密登录）
+//	MERIDIAN_USERNAME       CMDB 登录用户名（与 MERIDIAN_PASSWORD 配合换 token）
+//	MERIDIAN_PASSWORD       CMDB 登录密码
 //	ALIYUN_API_URL      阿里云 ECS mock（默认 :19005）
 //	VOLC_API_URL        火山 CloudControl mock（默认 :19006）
 //	TSDB_API_URL        TSDB mock（默认 :19004）
@@ -51,9 +51,9 @@ func main() {
 	)
 	flag.Parse()
 
-	cmdbAPI := record.NormalizeBaseURL(record.Getenv("CMDB_API_URL", "http://localhost:8080"))
+	cmdbAPI := record.NormalizeBaseURL(record.Getenv("MERIDIAN_API_URL", "http://localhost:8080"))
 
-	// 解析 CMDB 认证令牌（CMDB_TOKEN 或 CMDB_USERNAME+CMDB_PASSWORD 登录换取）。
+	// 解析 CMDB 认证令牌（MERIDIAN_TOKEN 或 MERIDIAN_USERNAME+MERIDIAN_PASSWORD 登录换取）。
 	authToken, err := record.ResolveCMDBToken(context.Background(), cmdbAPI)
 	if err != nil {
 		log.Fatalf("解析 CMDB 认证令牌失败: %v", err)
@@ -78,7 +78,7 @@ func main() {
 		log.Printf("[dry-run] 仅打印发现记录，不上报 %s", cmdbAPI)
 	} else {
 		if authToken == "" {
-			log.Print("提示：未配置 CMDB_TOKEN 或 CMDB_USERNAME/CMDB_PASSWORD，服务端启用认证时上报将被拒绝")
+			log.Print("提示：未配置 MERIDIAN_TOKEN 或 MERIDIAN_USERNAME/MERIDIAN_PASSWORD，服务端启用认证时上报将被拒绝")
 		}
 		log.Printf("发现记录上报地址: %s/api/v1/discovery-records", cmdbAPI)
 	}

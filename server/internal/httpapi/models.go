@@ -9,8 +9,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/datatypes"
 
-	"cmdb/server/internal/store"
-	"cmdb/server/internal/validation"
+	"meridian/server/internal/store"
+	"meridian/server/internal/validation"
 )
 
 // 关系基数与方向枚举。
