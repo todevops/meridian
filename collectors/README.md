@@ -1,7 +1,7 @@
-# collectors — CMDB 自研采集器
+# collectors — Meridian 自研采集器
 
 五款数据源采集器，拉取源端清单映射为标准发现记录（契约 `DiscoveryRecord`，见 `pkg/openapi/openapi.yaml`），
-批量 `POST {CMDB_API_URL}/api/v1/discovery-records`。纯 Go 标准库实现，无外部依赖。
+批量 `POST {MERIDIAN_API_URL}/api/v1/discovery-records`。纯 Go 标准库实现，无外部依赖。
 
 ## 构建与运行
 
@@ -38,7 +38,7 @@ dry-run 模式下只打印意图不变更，CMDB 不可达降级为告警。
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
-| `CMDB_API_URL` | `http://localhost:8080` | CMDB API 地址 |
+| `MERIDIAN_API_URL` | `http://localhost:8080` | CMDB API 地址 |
 | `ALIYUN_API_URL` | `:19005` | 阿里云 mock（简写自动补 `http://localhost`） |
 | `VOLC_API_URL` | `:19006` | 火山 CloudControl mock |
 | `TSDB_API_URL` | `:19004` | TSDB mock |

@@ -1,6 +1,6 @@
-# CMDB
+# Meridian
 
-纯自研 CMDB（配置管理数据库）平台 monorepo：Go 后端 + Next.js 前端 + 插件化发现引擎。
+纯自研 Meridian CMDB（配置管理数据库）平台 monorepo：Go 后端 + Next.js 前端 + 插件化发现引擎。
 
 ## 目录结构
 
@@ -64,7 +64,7 @@ docker compose up -d
 
 除 `/healthz`、`/readyz` 与 `/api/v1/auth/login` 外，所有 `/api/v1` 接口均需登录并按权限点鉴权。
 
-- **认证**：用户名/密码登录（bcrypt 哈希存储），签发 JWT（无状态会话），经 httpOnly cookie（`cmdb_token`）或 `Authorization: Bearer` 携带。
+- **认证**：用户名/密码登录（bcrypt 哈希存储），签发 JWT（无状态会话），经 httpOnly cookie（`meridian_token`）或 `Authorization: Bearer` 携带。
 - **鉴权**：Casbin RBAC，策略经 gorm-adapter 持久化到业务库（`casbin_rule` 表）。权限点为代码内固定目录（`server/internal/auth/catalog.go`），角色可自定义（角色→权限点、用户→角色全部由策略承载）。
 - **内置账号**（首次启动种子，初始密码见下）：`admin`（角色 admin，全权限）、`collector`（角色 collector，仅 `discovery:write`，供采集器上报）。
 - **内置角色**：`admin`（全部权限点）、`operator`（模型/CI/IPAM/DCIM 维护 + 发现上报）、`viewer`（只读）、`collector`（仅上报）。内置角色不可删除，admin 角色权限点不可修改。
@@ -79,7 +79,17 @@ docker compose up -d
 | `ADMIN_INITIAL_PASSWORD` | admin 初始密码（仅首次种子生效） | `admin123` |
 | `COLLECTOR_INITIAL_PASSWORD` | collector 初始密码（仅首次种子生效） | `collector123` |
 
-脚本（`scripts/demo.sh`、`scripts/seed-models.sh`）统一先走 `scripts/auth-login.sh` 登录再调业务接口；可用 `CMDB_AUTH_USER` / `CMDB_AUTH_PASSWORD` 覆盖登录账号。
+脚本（`scripts/demo.sh`、`scripts/seed-models.sh`）统一先走 `scripts/auth-login.sh` 登录再调业务接口；可用 `MERIDIAN_AUTH_USER` / `MERIDIAN_AUTH_PASSWORD` 覆盖登录账号。
+
+## 搜索
+
+- **全局搜索**：`GET /api/v1/search?q=...`，跨模型/CI/IPAM 分组返回，前端 landing 页（`/`）即全局搜索页；分组按用户权限点裁剪。
+- **模块内搜索**：`/api/v1/models` 与 `/api/v1/cis` 支持 `keyword`（CI 为全属性值大小写不敏感匹配），IPAM/用户管理页自带关键字过滤。
+- 实现选型：**PostgreSQL 全文检索**（`LOWER(...) LIKE` + 生产可用 `pg_trgm` 索引），不引入 ES 等外部中间件；搜索契约稳定，未来可在 `httpapi/search.go` 一层之后替换为 ES 实现。
+
+## DCIM
+
+`GET /api/v1/dcim/overview` 提供机房/机柜/U 位/电力容量总览（按机房聚合 + 逐机柜明细）；机柜经 `POST /api/v1/cis/{id}/relations`（`located_in`，one_to_one 自动改挂）分配到机房；机柜 U 位容量属性统一为 `u_capacity`（兼容历史 `u_total`）。
 
 ## 垂直切片演示
 
@@ -102,7 +112,7 @@ bash scripts/demo.sh
 ```bash
 # 终端 1：启动后端（SQLite 本地库文件，相对路径以 server/ 为基准）
 cd server
-DB_SQLITE_PATH=./cmdb-dev.db go run ./cmd/server
+DB_SQLITE_PATH=./meridian-dev.db go run ./cmd/server
 
 # 终端 2：导入种子模型（BASE_URL 默认 http://localhost:8080，可用环境变量覆盖）
 bash scripts/seed-models.sh

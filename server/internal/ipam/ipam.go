@@ -13,7 +13,7 @@ import (
 
 	"gorm.io/gorm"
 
-	"cmdb/server/internal/store"
+	"meridian/server/internal/store"
 )
 
 // 业务错误（HTTP 层据此映射状态码）。

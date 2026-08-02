@@ -14,8 +14,8 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"cmdb/server/internal/discovery"
-	"cmdb/server/internal/store"
+	"meridian/server/internal/discovery"
+	"meridian/server/internal/store"
 )
 
 // targetsFixture 是模拟 n9e targets API 的响应体。

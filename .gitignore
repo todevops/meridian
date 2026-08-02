@@ -38,7 +38,7 @@ coverage/
 .bin/
 *.db
 *.db-journal
-cmdb-dev.db
+meridian-dev.db
 
 # CodeGraph 本地索引（自动生成）
 .codegraph/

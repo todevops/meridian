@@ -2,10 +2,28 @@
 package config
 
 import (
+	"log"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/joho/godotenv"
 )
+
+// init 加载 .env 文件（若存在）：依次尝试当前目录与上级目录，
+// 已存在的环境变量优先（godotenv.Load 不覆盖已有值）。
+func init() {
+	for _, path := range []string{".env", "../.env"} {
+		if _, err := os.Stat(path); err == nil {
+			if err := godotenv.Load(path); err != nil {
+				log.Printf("加载 %s 失败: %v", path, err)
+			} else {
+				log.Printf("已加载环境配置: %s", path)
+			}
+			return
+		}
+	}
+}
 
 // Config 保存服务端运行所需的全部配置项。
 type Config struct {
@@ -13,7 +31,7 @@ type Config struct {
 	HTTPAddr string
 	// PGDSN 为 PostgreSQL 连接串（PG_DSN）；非空时使用 PostgreSQL。
 	PGDSN string
-	// DBSQLitePath 为 SQLite 文件路径（DB_SQLITE_PATH），默认 ./cmdb-dev.db；
+	// DBSQLitePath 为 SQLite 文件路径（DB_SQLITE_PATH），默认 ./meridian-dev.db；
 	// 仅在 PG_DSN 为空时生效（本地开发验证）。
 	DBSQLitePath string
 	// RedisAddr 为 Redis 地址（REDIS_ADDR），默认 localhost:6379。
@@ -44,7 +62,7 @@ func Load() Config {
 	return Config{
 		HTTPAddr:                 getEnv("HTTP_ADDR", ":8080"),
 		PGDSN:                    os.Getenv("PG_DSN"),
-		DBSQLitePath:             getEnv("DB_SQLITE_PATH", "./cmdb-dev.db"),
+		DBSQLitePath:             getEnv("DB_SQLITE_PATH", "./meridian-dev.db"),
 		RedisAddr:                getEnv("REDIS_ADDR", "localhost:6379"),
 		NATSURL:                  getEnv("NATS_URL", "nats://localhost:4222"),
 		N9EAPIURL:                os.Getenv("N9E_API_URL"),

@@ -12,13 +12,13 @@ import (
 	"syscall"
 	"time"
 
-	"cmdb/server/internal/auth"
-	"cmdb/server/internal/config"
-	"cmdb/server/internal/db"
-	"cmdb/server/internal/discovery"
-	"cmdb/server/internal/httpapi"
-	"cmdb/server/internal/n9e"
-	"cmdb/server/internal/stream"
+	"meridian/server/internal/auth"
+	"meridian/server/internal/config"
+	"meridian/server/internal/db"
+	"meridian/server/internal/discovery"
+	"meridian/server/internal/httpapi"
+	"meridian/server/internal/n9e"
+	"meridian/server/internal/stream"
 )
 
 func main() {

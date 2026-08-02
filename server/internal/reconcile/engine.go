@@ -16,8 +16,8 @@ import (
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
-	"cmdb/server/internal/store"
-	"cmdb/server/internal/validation"
+	"meridian/server/internal/store"
+	"meridian/server/internal/validation"
 )
 
 // 调和判定动作。

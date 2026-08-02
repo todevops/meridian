@@ -13,8 +13,8 @@ import (
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
-	"cmdb/server/internal/reconcile"
-	"cmdb/server/internal/store"
+	"meridian/server/internal/reconcile"
+	"meridian/server/internal/store"
 )
 
 // RecordError 描述一条被拒绝的记录。

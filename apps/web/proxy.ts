@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 
 // 会话 cookie 名（与后端 auth.CookieName 一致）
-const SESSION_COOKIE = "cmdb_token"
+const SESSION_COOKIE = "meridian_token"
 
 // 无需登录即可访问的页面
 const PUBLIC_PATHS = ["/login"]
@@ -13,7 +13,9 @@ const PUBLIC_PATHS = ["/login"]
  */
 export default function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
-  if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+  if (
+    PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))
+  ) {
     return NextResponse.next()
   }
   const token = req.cookies.get(SESSION_COOKIE)?.value

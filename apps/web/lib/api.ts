@@ -3,7 +3,13 @@
 // 所有请求走同源 /api，开发期由 next.config rewrites 代理到 Go 后端（默认 http://localhost:8080）。
 
 /** 属性数据类型（契约六枚举） */
-export type AttributeType = "string" | "number" | "bool" | "enum" | "ip" | "date"
+export type AttributeType =
+  | "string"
+  | "number"
+  | "bool"
+  | "enum"
+  | "ip"
+  | "date"
 
 /** 属性定义 */
 export interface AttributeDefinition {
@@ -169,15 +175,21 @@ function buildQuery(query?: Query): string {
 
 async function request<T>(
   path: string,
-  init?: { method?: string; query?: Query; body?: unknown },
+  init?: { method?: string; query?: Query; body?: unknown }
 ): Promise<T> {
   const res = await fetch(`${BASE}${path}${buildQuery(init?.query)}`, {
     method: init?.method ?? "GET",
-    headers: init?.body !== undefined ? { "Content-Type": "application/json" } : undefined,
+    headers:
+      init?.body !== undefined
+        ? { "Content-Type": "application/json" }
+        : undefined,
     body: init?.body !== undefined ? JSON.stringify(init.body) : undefined,
   })
   if (!res.ok) {
-    let body: ApiErrorBody = { code: `HTTP_${res.status}`, message: `请求失败（${res.status}）` }
+    let body: ApiErrorBody = {
+      code: `HTTP_${res.status}`,
+      message: `请求失败（${res.status}）`,
+    }
     try {
       const parsed: unknown = await res.json()
       if (
@@ -192,7 +204,11 @@ async function request<T>(
       // 非 JSON 错误响应，使用默认错误体
     }
     // 会话失效（非登录接口本身）：跳转登录页并携带回跳地址
-    if (res.status === 401 && !path.startsWith("/v1/auth/login") && typeof window !== "undefined") {
+    if (
+      res.status === 401 &&
+      !path.startsWith("/v1/auth/login") &&
+      typeof window !== "undefined"
+    ) {
       const here = window.location.pathname + window.location.search
       if (!window.location.pathname.startsWith("/login")) {
         window.location.href = `/login?redirect=${encodeURIComponent(here)}`
@@ -202,7 +218,7 @@ async function request<T>(
   }
   // 部分写操作（如忽略发现记录、卸载 U 位）可能返回空响应体，先读文本再解析
   const text = await res.text()
-  return (text ? (JSON.parse(text) as T) : (undefined as T))
+  return text ? (JSON.parse(text) as T) : (undefined as T)
 }
 
 // ---------- models ----------
@@ -214,7 +230,9 @@ export interface ListModelsParams {
   keyword?: string
 }
 
-export function listModels(params: ListModelsParams = {}): Promise<Paged<Model>> {
+export function listModels(
+  params: ListModelsParams = {}
+): Promise<Paged<Model>> {
   return request<Paged<Model>>("/v1/models", { query: { ...params } })
 }
 
@@ -226,7 +244,10 @@ export function createModel(body: ModelCreateRequest): Promise<Model> {
   return request<Model>("/v1/models", { method: "POST", body })
 }
 
-export function patchModel(modelId: string, body: ModelPatchRequest): Promise<Model> {
+export function patchModel(
+  modelId: string,
+  body: ModelPatchRequest
+): Promise<Model> {
   return request<Model>(`/v1/models/${encodeURIComponent(modelId)}`, {
     method: "PATCH",
     body,
@@ -239,6 +260,8 @@ export interface ListCIsParams {
   /** 按所属模型过滤 */
   model_id?: string
   status?: CIStatus
+  /** 全文关键字（匹配全部属性值，大小写不敏感） */
+  keyword?: string
   page?: number
   page_size?: number
 }
@@ -256,16 +279,23 @@ export function getCI(ciId: string): Promise<CI> {
 }
 
 export function patchCI(ciId: string, body: CIPatchRequest): Promise<CI> {
-  return request<CI>(`/v1/cis/${encodeURIComponent(ciId)}`, { method: "PATCH", body })
+  return request<CI>(`/v1/cis/${encodeURIComponent(ciId)}`, {
+    method: "PATCH",
+    body,
+  })
 }
 
-export function listCIRelations(ciId: string): Promise<{ items: CIRelation[] }> {
-  return request<{ items: CIRelation[] }>(`/v1/cis/${encodeURIComponent(ciId)}/relations`)
+export function listCIRelations(
+  ciId: string
+): Promise<{ items: CIRelation[] }> {
+  return request<{ items: CIRelation[] }>(
+    `/v1/cis/${encodeURIComponent(ciId)}/relations`
+  )
 }
 
 export function createCIRelation(
   ciId: string,
-  body: { relation_code: string; peer_ci_id: string },
+  body: { relation_code: string; peer_ci_id: string }
 ): Promise<CIRelation> {
   return request<CIRelation>(`/v1/cis/${encodeURIComponent(ciId)}/relations`, {
     method: "POST",
@@ -273,17 +303,21 @@ export function createCIRelation(
   })
 }
 
-export function deleteCIRelation(ciId: string, relationCode: string, peerCiId: string): Promise<void> {
+export function deleteCIRelation(
+  ciId: string,
+  relationCode: string,
+  peerCiId: string
+): Promise<void> {
   return request<void>(
     `/v1/cis/${encodeURIComponent(ciId)}/relations/${encodeURIComponent(relationCode)}/${encodeURIComponent(peerCiId)}`,
-    { method: "DELETE" },
+    { method: "DELETE" }
   )
 }
 
 // ---------- discovery ----------
 
 export function createDiscoveryRecords(
-  records: DiscoveryRecord[],
+  records: DiscoveryRecord[]
 ): Promise<DiscoveryRecordBatchResponse> {
   return request<DiscoveryRecordBatchResponse>("/v1/discovery-records", {
     method: "POST",
@@ -322,8 +356,12 @@ export interface ListPoolParams {
   page_size?: number
 }
 
-export function listDiscoveryPool(params: ListPoolParams = {}): Promise<Paged<PoolItem>> {
-  return request<Paged<PoolItem>>("/v1/discovery-pool", { query: { ...params } })
+export function listDiscoveryPool(
+  params: ListPoolParams = {}
+): Promise<Paged<PoolItem>> {
+  return request<Paged<PoolItem>>("/v1/discovery-pool", {
+    query: { ...params },
+  })
 }
 
 export interface ConfirmPoolItemRequest {
@@ -334,17 +372,26 @@ export interface ConfirmPoolItemRequest {
 }
 
 /** 确认入库：201 返回新建/更新后的 CI */
-export function confirmPoolItem(itemId: string, body: ConfirmPoolItemRequest = {}): Promise<CI> {
-  return request<CI>(`/v1/discovery-pool/${encodeURIComponent(itemId)}/confirm`, {
-    method: "POST",
-    body,
-  })
+export function confirmPoolItem(
+  itemId: string,
+  body: ConfirmPoolItemRequest = {}
+): Promise<CI> {
+  return request<CI>(
+    `/v1/discovery-pool/${encodeURIComponent(itemId)}/confirm`,
+    {
+      method: "POST",
+      body,
+    }
+  )
 }
 
 export function ignorePoolItem(itemId: string): Promise<void> {
-  return request<void>(`/v1/discovery-pool/${encodeURIComponent(itemId)}/ignore`, {
-    method: "POST",
-  })
+  return request<void>(
+    `/v1/discovery-pool/${encodeURIComponent(itemId)}/ignore`,
+    {
+      method: "POST",
+    }
+  )
 }
 
 // ---------- IPAM ----------
@@ -378,12 +425,18 @@ export interface ListPrefixesParams {
   page_size?: number
 }
 
-export function listPrefixes(params: ListPrefixesParams = {}): Promise<Paged<IpamPrefix>> {
-  return request<Paged<IpamPrefix>>("/v1/ipam/prefixes", { query: { ...params } })
+export function listPrefixes(
+  params: ListPrefixesParams = {}
+): Promise<Paged<IpamPrefix>> {
+  return request<Paged<IpamPrefix>>("/v1/ipam/prefixes", {
+    query: { ...params },
+  })
 }
 
 export function getPrefix(prefixId: string): Promise<IpamPrefix> {
-  return request<IpamPrefix>(`/v1/ipam/prefixes/${encodeURIComponent(prefixId)}`)
+  return request<IpamPrefix>(
+    `/v1/ipam/prefixes/${encodeURIComponent(prefixId)}`
+  )
 }
 
 export interface PrefixCreateRequest {
@@ -407,19 +460,27 @@ export interface AllocateIPsRequest {
  * 自动分配 IP。契约未固定响应形状，统一规整为已分配的 IP 字符串列表用于展示；
  * 分配后的权威数据以重新拉取的 IP 列表为准。
  */
-export async function allocateIPs(prefixId: string, body: AllocateIPsRequest): Promise<string[]> {
-  const res = await request<unknown>(`/v1/ipam/prefixes/${encodeURIComponent(prefixId)}/allocate`, {
-    method: "POST",
-    body,
-  })
+export async function allocateIPs(
+  prefixId: string,
+  body: AllocateIPsRequest
+): Promise<string[]> {
+  const res = await request<unknown>(
+    `/v1/ipam/prefixes/${encodeURIComponent(prefixId)}/allocate`,
+    {
+      method: "POST",
+      body,
+    }
+  )
   return extractAllocatedIPs(res)
 }
 
 function extractAllocatedIPs(res: unknown): string[] {
   // 兼容三种返回：["10.0.0.1"]、[{ip: "10.0.0.1", ...}]、{items: [...]}
-  const list = Array.isArray(res) ? res : Array.isArray((res as { items?: unknown[] })?.items)
-    ? (res as { items: unknown[] }).items
-    : []
+  const list = Array.isArray(res)
+    ? res
+    : Array.isArray((res as { items?: unknown[] })?.items)
+      ? (res as { items: unknown[] }).items
+      : []
   return list
     .map((item) => {
       if (typeof item === "string") return item
@@ -483,7 +544,9 @@ export interface RackUnitsResponse {
 }
 
 export function getRackUnits(rackCiId: string): Promise<RackUnitsResponse> {
-  return request<RackUnitsResponse>(`/v1/dcim/racks/${encodeURIComponent(rackCiId)}/units`)
+  return request<RackUnitsResponse>(
+    `/v1/dcim/racks/${encodeURIComponent(rackCiId)}/units`
+  )
 }
 
 export interface MountRequest {
@@ -492,7 +555,10 @@ export interface MountRequest {
   u_height: number
 }
 
-export function mountRackUnit(rackCiId: string, body: MountRequest): Promise<void> {
+export function mountRackUnit(
+  rackCiId: string,
+  body: MountRequest
+): Promise<void> {
   return request<void>(`/v1/dcim/racks/${encodeURIComponent(rackCiId)}/mount`, {
     method: "POST",
     body,
@@ -500,10 +566,13 @@ export function mountRackUnit(rackCiId: string, body: MountRequest): Promise<voi
 }
 
 export function unmountRackUnit(rackCiId: string, ciId: string): Promise<void> {
-  return request<void>(`/v1/dcim/racks/${encodeURIComponent(rackCiId)}/unmount`, {
-    method: "POST",
-    body: { ci_id: ciId },
-  })
+  return request<void>(
+    `/v1/dcim/racks/${encodeURIComponent(rackCiId)}/unmount`,
+    {
+      method: "POST",
+      body: { ci_id: ciId },
+    }
+  )
 }
 
 // ---------- Oxidized 集成 ----------
@@ -538,8 +607,14 @@ export interface LoginResponse {
   user: CurrentUser
 }
 
-export function login(username: string, password: string): Promise<LoginResponse> {
-  return request<LoginResponse>("/v1/auth/login", { method: "POST", body: { username, password } })
+export function login(
+  username: string,
+  password: string
+): Promise<LoginResponse> {
+  return request<LoginResponse>("/v1/auth/login", {
+    method: "POST",
+    body: { username, password },
+  })
 }
 
 export function logout(): Promise<{ status: string }> {
@@ -596,8 +671,14 @@ export function createUser(body: UserCreateRequest): Promise<User> {
   return request<User>("/v1/users", { method: "POST", body })
 }
 
-export function patchUser(userId: string, body: UserPatchRequest): Promise<User> {
-  return request<User>(`/v1/users/${encodeURIComponent(userId)}`, { method: "PATCH", body })
+export function patchUser(
+  userId: string,
+  body: UserPatchRequest
+): Promise<User> {
+  return request<User>(`/v1/users/${encodeURIComponent(userId)}`, {
+    method: "PATCH",
+    body,
+  })
 }
 
 // ---------- 角色与权限点 ----------
@@ -645,12 +726,20 @@ export function createRole(body: RoleCreateRequest): Promise<Role> {
   return request<Role>("/v1/roles", { method: "POST", body })
 }
 
-export function patchRole(roleId: string, body: RolePatchRequest): Promise<Role> {
-  return request<Role>(`/v1/roles/${encodeURIComponent(roleId)}`, { method: "PATCH", body })
+export function patchRole(
+  roleId: string,
+  body: RolePatchRequest
+): Promise<Role> {
+  return request<Role>(`/v1/roles/${encodeURIComponent(roleId)}`, {
+    method: "PATCH",
+    body,
+  })
 }
 
 export function deleteRole(roleId: string): Promise<void> {
-  return request<void>(`/v1/roles/${encodeURIComponent(roleId)}`, { method: "DELETE" })
+  return request<void>(`/v1/roles/${encodeURIComponent(roleId)}`, {
+    method: "DELETE",
+  })
 }
 
 export function listPermissions(): Promise<{ items: PermissionItem[] }> {
@@ -703,4 +792,36 @@ export interface DCIMOverview {
 
 export function getDCIMOverview(): Promise<DCIMOverview> {
   return request<DCIMOverview>("/v1/dcim/overview")
+}
+
+// ---------- 全局搜索 ----------
+
+/** 搜索结果项 */
+export interface SearchItem {
+  kind: "model" | "ci" | "ipam_prefix" | "ipam_ip"
+  id: string
+  title: string
+  subtitle: string
+  matched?: string
+  /** 仅 kind=ci 时返回，前端据此决定跳转目标 */
+  model_code?: string
+}
+
+/** 搜索结果分组（仅非空分组返回） */
+export interface SearchGroup {
+  kind: "models" | "cis" | "ipam"
+  label: string
+  items: SearchItem[]
+}
+
+export interface SearchResponse {
+  query: string
+  groups: SearchGroup[]
+}
+
+export function globalSearch(
+  q: string,
+  limit?: number
+): Promise<SearchResponse> {
+  return request<SearchResponse>("/v1/search", { query: { q, limit } })
 }

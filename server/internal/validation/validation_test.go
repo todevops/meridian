@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"cmdb/server/internal/store"
+	"meridian/server/internal/store"
 )
 
 // testDefs 构造覆盖全部规则类型的属性定义。

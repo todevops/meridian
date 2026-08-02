@@ -9,6 +9,7 @@ import {
   Building2 as Building2Icon,
   Pencil as PencilIcon,
   Plus as PlusIcon,
+  Search as SearchIcon,
   Server as ServerIcon,
   Warehouse as WarehouseIcon,
   Zap as ZapIcon,
@@ -26,7 +27,13 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   ApiError,
@@ -50,7 +57,11 @@ function UsageBar({ percent }: { percent: number }) {
     <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
       <div
         className={`h-full rounded-full ${
-          percent > 90 ? "bg-destructive" : percent > 70 ? "bg-amber-500" : "bg-emerald-500"
+          percent > 90
+            ? "bg-destructive"
+            : percent > 70
+              ? "bg-amber-500"
+              : "bg-emerald-500"
         }`}
         style={{ width: `${Math.min(100, percent)}%` }}
       />
@@ -65,6 +76,17 @@ export default function DcimPage() {
   const [error, setError] = useState<string | null>(null)
   const [roomDialogOpen, setRoomDialogOpen] = useState(false)
   const [assigningRack, setAssigningRack] = useState<DCIMRackStat | null>(null)
+  const [filter, setFilter] = useState("")
+
+  // 模块内搜索：按机房名称/编码/地址与机柜编号过滤（数据已在总览中，前端过滤即可）
+  const kw = filter.trim().toLowerCase()
+  const matchRack = (r: DCIMRackStat) =>
+    !kw || r.name.toLowerCase().includes(kw)
+  const matchRoom = (room: DCIMRoomStat) =>
+    !kw ||
+    room.name.toLowerCase().includes(kw) ||
+    (room.code ?? "").toLowerCase().includes(kw) ||
+    (room.address ?? "").toLowerCase().includes(kw)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -83,9 +105,15 @@ export default function DcimPage() {
   }, [load])
 
   const racksOf = (roomId: string | null): DCIMRackStat[] =>
-    (overview?.racks ?? []).filter((r) => r.room_id === roomId)
+    (overview?.racks ?? []).filter((r) => r.room_id === roomId && matchRack(r))
 
-  const globalPercent = overview ? uPercent(overview.u_used, overview.u_total) : null
+  const visibleRooms = (overview?.rooms ?? []).filter(
+    (room) => matchRoom(room) || racksOf(room.room_id).length > 0
+  )
+
+  const globalPercent = overview
+    ? uPercent(overview.u_used, overview.u_total)
+    : null
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-6">
@@ -93,12 +121,24 @@ export default function DcimPage() {
         <div>
           <h1 className="text-xl font-semibold">DCIM 数据中心设施</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            机房 / 机柜 / U 位与电力容量概览，点击机柜卡片进入 U 位矩阵进行挂载/卸载
+            机房 / 机柜 / U 位与电力容量概览，点击机柜卡片进入 U
+            位矩阵进行挂载/卸载
           </p>
         </div>
-        <Button variant="outline" onClick={() => setRoomDialogOpen(true)}>
-          <PlusIcon /> 新建机房
-        </Button>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="w-56 pl-9"
+              placeholder="搜索机房 / 机柜"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            />
+          </div>
+          <Button variant="outline" onClick={() => setRoomDialogOpen(true)}>
+            <PlusIcon /> 新建机房
+          </Button>
+        </div>
       </header>
 
       {loading && !overview ? (
@@ -121,8 +161,16 @@ export default function DcimPage() {
         <>
           {/* 全局容量统计 */}
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <StatCard icon={<WarehouseIcon className="size-4" />} label="机房" value={overview.room_count} />
-            <StatCard icon={<ServerIcon className="size-4" />} label="机柜" value={overview.rack_count} />
+            <StatCard
+              icon={<WarehouseIcon className="size-4" />}
+              label="机房"
+              value={overview.room_count}
+            />
+            <StatCard
+              icon={<ServerIcon className="size-4" />}
+              label="机柜"
+              value={overview.rack_count}
+            />
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-1.5 text-sm font-normal text-muted-foreground">
@@ -132,9 +180,14 @@ export default function DcimPage() {
               <CardContent className="flex flex-col gap-2">
                 <div className="text-2xl font-semibold">
                   {overview.u_used}
-                  <span className="text-sm font-normal text-muted-foreground"> / {overview.u_total} U</span>
+                  <span className="text-sm font-normal text-muted-foreground">
+                    {" "}
+                    / {overview.u_total} U
+                  </span>
                   {globalPercent !== null && (
-                    <span className="ml-2 text-sm font-normal text-muted-foreground">{globalPercent}%</span>
+                    <span className="ml-2 text-sm font-normal text-muted-foreground">
+                      {globalPercent}%
+                    </span>
                   )}
                 </div>
                 {globalPercent !== null && <UsageBar percent={globalPercent} />}
@@ -148,20 +201,36 @@ export default function DcimPage() {
           </div>
 
           {/* 按机房分组 */}
-          {overview.rooms.map((room) => (
-            <RoomSection key={room.room_id} room={room} racks={racksOf(room.room_id)} onOpenRack={(id) => router.push(`/dcim/${id}`)} />
+          {visibleRooms.map((room) => (
+            <RoomSection
+              key={room.room_id}
+              room={room}
+              racks={racksOf(room.room_id)}
+              rooms={overview.rooms}
+              onOpenRack={(id) => router.push(`/dcim/${id}`)}
+              onAssign={setAssigningRack}
+            />
           ))}
 
           {/* 未分配机房的机柜 */}
-          {overview.unassigned.rack_count > 0 && (
+          {racksOf(null).length > 0 && (
             <section className="flex flex-col gap-3">
               <div className="flex items-baseline justify-between">
-                <h2 className="text-base font-medium text-muted-foreground">未分配机房</h2>
+                <h2 className="text-base font-medium text-muted-foreground">
+                  未分配机房
+                </h2>
                 <p className="text-sm text-muted-foreground">
-                  {overview.unassigned.rack_count} 柜 · U 位 {overview.unassigned.u_used}/{overview.unassigned.u_total} · {overview.unassigned.power_capacity_kw} kW
+                  {overview.unassigned.rack_count} 柜 · U 位{" "}
+                  {overview.unassigned.u_used}/{overview.unassigned.u_total} ·{" "}
+                  {overview.unassigned.power_capacity_kw} kW
                 </p>
               </div>
-              <RackGrid racks={racksOf(null)} onOpenRack={(id) => router.push(`/dcim/${id}`)} />
+              <RackGrid
+                racks={racksOf(null)}
+                rooms={overview.rooms}
+                onOpenRack={(id) => router.push(`/dcim/${id}`)}
+                onAssign={setAssigningRack}
+              />
             </section>
           )}
 
@@ -169,19 +238,41 @@ export default function DcimPage() {
             <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed py-16">
               <WarehouseIcon className="size-8 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">
-                暂无机房与机柜，可点击「新建机房」登记，或运行 scripts/seed-models.sh 导入种子模型
+                暂无机房与机柜，可点击「新建机房」登记，或运行
+                scripts/seed-models.sh 导入种子模型
               </p>
             </div>
           )}
         </>
       )}
 
-      <RoomCreateDialog open={roomDialogOpen} onOpenChange={setRoomDialogOpen} onSaved={load} />
+      <RoomCreateDialog
+        open={roomDialogOpen}
+        onOpenChange={setRoomDialogOpen}
+        onSaved={load}
+      />
+      <AssignRoomDialog
+        rack={assigningRack}
+        rooms={overview?.rooms ?? []}
+        onClose={() => setAssigningRack(null)}
+        onSaved={() => {
+          setAssigningRack(null)
+          void load()
+        }}
+      />
     </div>
   )
 }
 
-function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: React.ReactNode }) {
+function StatCard({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode
+  label: string
+  value: React.ReactNode
+}) {
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -199,11 +290,15 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
 function RoomSection({
   room,
   racks,
+  rooms,
   onOpenRack,
+  onAssign,
 }: {
   room: DCIMRoomStat
   racks: DCIMRackStat[]
+  rooms: DCIMRoomStat[]
   onOpenRack: (rackId: string) => void
+  onAssign: (rack: DCIMRackStat) => void
 }) {
   const percent = uPercent(room.u_used, room.u_total)
   return (
@@ -211,8 +306,14 @@ function RoomSection({
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div className="flex items-baseline gap-2">
           <h2 className="text-base font-medium">{room.name || room.room_id}</h2>
-          {room.code && <span className="text-sm text-muted-foreground">({room.code})</span>}
-          {room.address && <span className="text-sm text-muted-foreground">· {room.address}</span>}
+          {room.code && (
+            <span className="text-sm text-muted-foreground">({room.code})</span>
+          )}
+          {room.address && (
+            <span className="text-sm text-muted-foreground">
+              · {room.address}
+            </span>
+          )}
         </div>
         <p className="text-sm text-muted-foreground">
           {room.rack_count} 柜 · U 位 {room.u_used}/{room.u_total}
@@ -220,7 +321,12 @@ function RoomSection({
         </p>
       </div>
       {racks.length > 0 ? (
-        <RackGrid racks={racks} onOpenRack={onOpenRack} />
+        <RackGrid
+          racks={racks}
+          rooms={rooms}
+          onOpenRack={onOpenRack}
+          onAssign={onAssign}
+        />
       ) : (
         <p className="rounded-lg border border-dashed px-3 py-4 text-center text-sm text-muted-foreground">
           该机房暂无机柜
@@ -230,42 +336,172 @@ function RoomSection({
   )
 }
 
-function RackGrid({ racks, onOpenRack }: { racks: DCIMRackStat[]; onOpenRack: (rackId: string) => void }) {
+function RackGrid({
+  racks,
+  rooms,
+  onOpenRack,
+  onAssign,
+}: {
+  racks: DCIMRackStat[]
+  rooms: DCIMRoomStat[]
+  onOpenRack: (rackId: string) => void
+  onAssign: (rack: DCIMRackStat) => void
+}) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {racks.map((rack) => {
         const percent = uPercent(rack.u_used, rack.u_total)
         return (
-          <button key={rack.rack_id} type="button" onClick={() => onOpenRack(rack.rack_id)} className="text-left">
-            <Card className="h-full transition-colors hover:border-primary/50">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between gap-2">
-                  <span className="truncate">{rack.name || rack.rack_id}</span>
-                  {percent !== null && (
-                    <span className="shrink-0 text-sm font-normal text-muted-foreground">{percent}%</span>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3">
-                <dl className="flex flex-col gap-1.5 text-sm">
-                  <div className="flex items-center justify-between gap-4">
-                    <dt className="text-muted-foreground">电力容量</dt>
-                    <dd>{rack.power_capacity_kw} kW</dd>
-                  </div>
-                  <div className="flex items-center justify-between gap-4">
-                    <dt className="text-muted-foreground">U 位占用</dt>
-                    <dd>
-                      {rack.u_used} / {rack.u_total} U
-                    </dd>
-                  </div>
-                </dl>
-                {percent !== null && <UsageBar percent={percent} />}
-              </CardContent>
-            </Card>
-          </button>
+          <div key={rack.rack_id} className="relative">
+            <button
+              type="button"
+              onClick={() => onOpenRack(rack.rack_id)}
+              className="w-full text-left"
+            >
+              <Card className="h-full transition-colors hover:border-primary/50">
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between gap-2">
+                    <span className="truncate">
+                      {rack.name || rack.rack_id}
+                    </span>
+                    {percent !== null && (
+                      <span className="shrink-0 text-sm font-normal text-muted-foreground">
+                        {percent}%
+                      </span>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-3">
+                  <dl className="flex flex-col gap-1.5 text-sm">
+                    <div className="flex items-center justify-between gap-4">
+                      <dt className="text-muted-foreground">电力容量</dt>
+                      <dd>{rack.power_capacity_kw} kW</dd>
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <dt className="text-muted-foreground">U 位占用</dt>
+                      <dd>
+                        {rack.u_used} / {rack.u_total} U
+                      </dd>
+                    </div>
+                  </dl>
+                  {percent !== null && <UsageBar percent={percent} />}
+                </CardContent>
+              </Card>
+            </button>
+            <button
+              type="button"
+              title="分配机房"
+              aria-label="分配机房"
+              onClick={() => onAssign(rack)}
+              className="absolute right-2 bottom-2 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <PencilIcon className="size-3.5" />
+            </button>
+          </div>
         )
       })}
     </div>
+  )
+}
+
+/** 分配/改挂机柜所属机房（located_in 为 one_to_one，服务端自动替换旧关系） */
+function AssignRoomDialog({
+  rack,
+  rooms,
+  onClose,
+  onSaved,
+}: {
+  rack: DCIMRackStat | null
+  rooms: DCIMRoomStat[]
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const UNASSIGNED = "__none__"
+  const [roomId, setRoomId] = useState<string>(UNASSIGNED)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (rack) {
+      setRoomId(rack.room_id ?? UNASSIGNED)
+      setSubmitError(null)
+    }
+  }, [rack])
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!rack) return
+    setSubmitError(null)
+    setSubmitting(true)
+    try {
+      if (roomId === UNASSIGNED) {
+        if (rack.room_id) {
+          await deleteCIRelation(rack.rack_id, "located_in", rack.room_id)
+        }
+      } else {
+        await createCIRelation(rack.rack_id, {
+          relation_code: "located_in",
+          peer_ci_id: roomId,
+        })
+      }
+      onSaved()
+    } catch (err) {
+      setSubmitError(
+        err instanceof ApiError ? err.message : "保存失败，请稍后重试"
+      )
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <Dialog open={rack !== null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>分配机房：{rack?.name}</DialogTitle>
+          <DialogDescription>
+            机柜与机房为一对一关系，改挂会自动替换原有机房。
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={onSubmit} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <Label>所属机房</Label>
+            <Select value={roomId} onValueChange={(v) => v && setRoomId(v)}>
+              <SelectTrigger>
+                <SelectValue>
+                  {(v: string) =>
+                    v === UNASSIGNED
+                      ? "未分配"
+                      : (rooms.find((r) => r.room_id === v)?.name ?? v)
+                  }
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={UNASSIGNED}>未分配</SelectItem>
+                {rooms.map((room) => (
+                  <SelectItem key={room.room_id} value={room.room_id}>
+                    {room.name}
+                    {room.code ? ` (${room.code})` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {submitError && (
+            <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {submitError}
+            </p>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>
+              取消
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? "保存中…" : "保存"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -306,18 +542,26 @@ function RoomCreateDialog({
       const models = await listModels({ keyword: "room", page_size: 50 })
       const roomModel = models.items.find((m) => m.code === "room")
       if (!roomModel) {
-        setSubmitError("机房模型（code=room）不存在，请先运行 scripts/seed-models.sh 导入种子模型")
+        setSubmitError(
+          "机房模型（code=room）不存在，请先运行 scripts/seed-models.sh 导入种子模型"
+        )
         return
       }
       await createCI({
         model_id: roomModel.id,
-        attributes: { name: name.trim(), code: code.trim(), address: address.trim() },
+        attributes: {
+          name: name.trim(),
+          code: code.trim(),
+          address: address.trim(),
+        },
         source: "manual",
       })
       onOpenChange(false)
       onSaved()
     } catch (err) {
-      setSubmitError(err instanceof ApiError ? err.message : "创建机房失败，请稍后重试")
+      setSubmitError(
+        err instanceof ApiError ? err.message : "创建机房失败，请稍后重试"
+      )
     } finally {
       setSubmitting(false)
     }
@@ -328,7 +572,9 @@ function RoomCreateDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>新建机房</DialogTitle>
-          <DialogDescription>机房是 DCIM 的顶层设施对象，机柜经「所在机房」关系挂载到机房。</DialogDescription>
+          <DialogDescription>
+            机房是 DCIM 的顶层设施对象，机柜经「所在机房」关系挂载到机房。
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-4">
@@ -336,18 +582,33 @@ function RoomCreateDialog({
               <Label htmlFor="room-name">
                 机房名称<span className="text-destructive">*</span>
               </Label>
-              <Input id="room-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="如：亦庄机房" />
+              <Input
+                id="room-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="如：亦庄机房"
+              />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="room-code">
                 机房编码<span className="text-destructive">*</span>
               </Label>
-              <Input id="room-code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="如：bj-yz（全局唯一）" />
+              <Input
+                id="room-code"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="如：bj-yz（全局唯一）"
+              />
             </div>
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="room-address">地址</Label>
-            <Input id="room-address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="可选" />
+            <Input
+              id="room-address"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="可选"
+            />
           </div>
           {submitError && (
             <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -355,7 +616,11 @@ function RoomCreateDialog({
             </p>
           )}
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
               取消
             </Button>
             <Button type="submit" disabled={submitting}>

@@ -33,8 +33,18 @@ const NAV_ITEMS = [
 
 // 系统管理菜单：permission 为所需权限点，无权限不展示
 const ADMIN_ITEMS = [
-  { href: "/settings/users", label: "用户管理", icon: UsersRoundIcon, permission: "user:manage" },
-  { href: "/settings/roles", label: "角色管理", icon: SettingsIcon, permission: "role:manage" },
+  {
+    href: "/settings/users",
+    label: "用户管理",
+    icon: UsersRoundIcon,
+    permission: "user:manage",
+  },
+  {
+    href: "/settings/roles",
+    label: "角色管理",
+    icon: SettingsIcon,
+    permission: "role:manage",
+  },
 ] as const
 
 function navLinkClass(active: boolean) {
@@ -42,7 +52,7 @@ function navLinkClass(active: boolean) {
     "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors",
     active
       ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
-      : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
+      : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground"
   )
 }
 
@@ -54,16 +64,22 @@ export function AppSidebar() {
   useEffect(() => {
     if (pathname === "/login") return
     // 会话失效时 api 客户端会自动跳登录页，这里静默失败即可
-    getCurrentUser().then(setUser).catch(() => {})
+    getCurrentUser()
+      .then(setUser)
+      .catch(() => {})
   }, [pathname])
 
   // 登录页不渲染侧边栏
   if (pathname === "/login") return null
 
   const isActive = (href: string, exact?: boolean) =>
-    exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`)
+    exact
+      ? pathname === href
+      : pathname === href || pathname.startsWith(`${href}/`)
 
-  const adminItems = ADMIN_ITEMS.filter((item) => user?.permissions.includes(item.permission))
+  const adminItems = ADMIN_ITEMS.filter((item) =>
+    user?.permissions.includes(item.permission)
+  )
 
   async function onLogout() {
     try {
@@ -118,8 +134,12 @@ export function AppSidebar() {
             <UserRoundIcon className="size-4 text-muted-foreground" />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-medium">{user.display_name}</div>
-            <div className="truncate text-xs text-muted-foreground">{user.roles.join(" / ")}</div>
+            <div className="truncate text-sm font-medium">
+              {user.display_name}
+            </div>
+            <div className="truncate text-xs text-muted-foreground">
+              {user.roles.join(" / ")}
+            </div>
           </div>
           <button
             type="button"

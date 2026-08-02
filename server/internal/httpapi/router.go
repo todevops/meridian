@@ -9,10 +9,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
-	"cmdb/server/internal/auth"
-	"cmdb/server/internal/dcim"
-	"cmdb/server/internal/discovery"
-	"cmdb/server/internal/ipam"
+	"meridian/server/internal/auth"
+	"meridian/server/internal/dcim"
+	"meridian/server/internal/discovery"
+	"meridian/server/internal/ipam"
 )
 
 // 错误码（机器可读）。
@@ -77,6 +77,8 @@ func NewRouter(db *gorm.DB, pipeline *discovery.Pipeline, authSvc *auth.Service)
 		authed.PATCH("/models/:model_id", s.require("model:write"), s.patchModel)
 
 		authed.GET("/cis", s.require("ci:read"), s.listCIs)
+		// 全局搜索：登录即可用，分组按权限点在处理器内裁剪
+		authed.GET("/search", s.globalSearch)
 		authed.POST("/cis", s.require("ci:write"), s.createCI)
 		authed.GET("/cis/:ci_id", s.require("ci:read"), s.getCI)
 		authed.PATCH("/cis/:ci_id", s.require("ci:write"), s.patchCI)

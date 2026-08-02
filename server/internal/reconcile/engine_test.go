@@ -12,7 +12,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"cmdb/server/internal/store"
+	"meridian/server/internal/store"
 )
 
 // setup 打开独立内存库，预置带调和键 ["ident","ip"] 的主机模型。

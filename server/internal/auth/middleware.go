@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"cmdb/server/internal/store"
+	"meridian/server/internal/store"
 )
 
 // 错误码（与 httpapi 保持一致，此处独立定义避免包间循环依赖）。
@@ -16,7 +16,7 @@ const (
 )
 
 // CookieName 是会话 cookie 名（与契约 cookieAuth 一致）。
-const CookieName = "cmdb_token"
+const CookieName = "meridian_token"
 
 const contextUserKey = "auth_user"
 

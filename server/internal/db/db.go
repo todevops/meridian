@@ -14,7 +14,7 @@ import (
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
 
-	"cmdb/server/internal/store"
+	"meridian/server/internal/store"
 )
 
 // gormConfig 是统一的 GORM 配置：慢查询告警，忽略 record-not-found 噪音日志。
@@ -37,7 +37,7 @@ func Init(pgDSN, sqlitePath string) (*gorm.DB, error) {
 		gdb, err = gorm.Open(postgres.Open(pgDSN), gormConfig)
 	} else {
 		if sqlitePath == "" {
-			sqlitePath = "./cmdb-dev.db"
+			sqlitePath = "./meridian-dev.db"
 		}
 		gdb, err = gorm.Open(sqlite.Open(sqlitePath), gormConfig)
 	}

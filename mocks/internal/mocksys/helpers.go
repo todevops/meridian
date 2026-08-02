@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	mocks "cmdb/mocks"
+	mocks "meridian/mocks"
 )
 
 // readFixture 从内嵌 FS 读取 fixture 文件。

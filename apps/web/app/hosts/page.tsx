@@ -16,7 +16,13 @@ import { Button } from "@workspace/ui/components/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -25,7 +31,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { ApiError, listCIs, listModels, type CI, type CIStatus, type Paged } from "@/lib/api"
+import {
+  ApiError,
+  listCIs,
+  listModels,
+  type CI,
+  type CIStatus,
+  type Paged,
+} from "@/lib/api"
 import { CI_STATUS_LABELS, CI_STATUSES } from "@/lib/labels"
 import { pickAttr } from "@/lib/format"
 
@@ -88,6 +101,7 @@ export default function HostsPage() {
       const res = await listCIs({
         model_id: modelId,
         status: status === "all" ? undefined : status,
+        keyword: keyword || undefined,
         page,
         page_size: PAGE_SIZE,
       })
@@ -97,28 +111,20 @@ export default function HostsPage() {
     } finally {
       setLoading(false)
     }
-  }, [modelId, status, page])
+  }, [modelId, status, keyword, page])
 
   useEffect(() => {
     void load()
   }, [load])
 
-  // 关键字防抖
+  // 关键字防抖（服务端全文过滤，匹配全部属性值）
   useEffect(() => {
-    const timer = setTimeout(() => setKeyword(keywordInput.trim().toLowerCase()), 300)
+    const timer = setTimeout(() => {
+      setPage(1)
+      setKeyword(keywordInput.trim())
+    }, 300)
     return () => clearTimeout(timer)
   }, [keywordInput])
-
-  // 契约的 CI 列表暂无服务端关键字参数，在当前页结果内按主机名/IP/OS/业务组做前端过滤
-  const filteredItems = useMemo(() => {
-    const items = data?.items ?? []
-    if (!keyword) return items
-    return items.filter((ci) =>
-      [hostAttr(ci, "hostname"), hostAttr(ci, "ip"), hostAttr(ci, "os"), hostAttr(ci, "bizGroup")]
-        .map((text) => text.toLowerCase())
-        .some((text) => text.includes(keyword)),
-    )
-  }, [data, keyword])
 
   const columns = useMemo<ColumnDef<CI>[]>(
     () => [
@@ -126,12 +132,26 @@ export default function HostsPage() {
         id: "hostname",
         header: "主机名",
         cell: ({ row }) => (
-          <span className="font-medium">{hostAttr(row.original, "hostname")}</span>
+          <span className="font-medium">
+            {hostAttr(row.original, "hostname")}
+          </span>
         ),
       },
-      { id: "ip", header: "IP", cell: ({ row }) => hostAttr(row.original, "ip") },
-      { id: "os", header: "OS", cell: ({ row }) => hostAttr(row.original, "os") },
-      { id: "cpu", header: "CPU", cell: ({ row }) => hostAttr(row.original, "cpu") },
+      {
+        id: "ip",
+        header: "IP",
+        cell: ({ row }) => hostAttr(row.original, "ip"),
+      },
+      {
+        id: "os",
+        header: "OS",
+        cell: ({ row }) => hostAttr(row.original, "os"),
+      },
+      {
+        id: "cpu",
+        header: "CPU",
+        cell: ({ row }) => hostAttr(row.original, "cpu"),
+      },
       {
         accessorKey: "status",
         header: "状态",
@@ -141,14 +161,22 @@ export default function HostsPage() {
           </Badge>
         ),
       },
-      { id: "bizGroup", header: "业务组", cell: ({ row }) => hostAttr(row.original, "bizGroup") },
-      { id: "heartbeat", header: "最近心跳", cell: ({ row }) => hostAttr(row.original, "heartbeat") },
+      {
+        id: "bizGroup",
+        header: "业务组",
+        cell: ({ row }) => hostAttr(row.original, "bizGroup"),
+      },
+      {
+        id: "heartbeat",
+        header: "最近心跳",
+        cell: ({ row }) => hostAttr(row.original, "heartbeat"),
+      },
     ],
-    [],
+    []
   )
 
   const table = useReactTable({
-    data: filteredItems,
+    data: data?.items ?? [],
     columns,
     getCoreRowModel: getCoreRowModel(),
     manualPagination: true,
@@ -162,7 +190,8 @@ export default function HostsPage() {
       <header>
         <h1 className="text-xl font-semibold">主机列表</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          主机 CI 由 n9e 心跳、vSphere、云 API 等来源自动调和建档，点击行查看详情
+          主机 CI 由 n9e 心跳、vSphere、云 API
+          等来源自动调和建档，点击行查看详情
         </p>
       </header>
 
@@ -177,7 +206,9 @@ export default function HostsPage() {
         >
           <SelectTrigger className="w-36">
             <SelectValue>
-              {(v: CIStatus | "all") => (v === "all" ? "全部状态" : CI_STATUS_LABELS[v])}
+              {(v: CIStatus | "all") =>
+                v === "all" ? "全部状态" : CI_STATUS_LABELS[v]
+              }
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
@@ -193,7 +224,7 @@ export default function HostsPage() {
           <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             className="pl-9"
-            placeholder="按主机名 / IP / OS / 业务组搜索（当前页内过滤）"
+            placeholder="按主机名 / IP / OS / 业务组搜索"
             value={keywordInput}
             onChange={(event) => setKeywordInput(event.target.value)}
           />
@@ -224,7 +255,10 @@ export default function HostsPage() {
                       <TableHead key={header.id}>
                         {header.isPlaceholder
                           ? null
-                          : flexRender(header.column.columnDef.header, header.getContext())}
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
                       </TableHead>
                     ))}
                   </TableRow>
@@ -251,7 +285,10 @@ export default function HostsPage() {
                     >
                       {row.getVisibleCells().map((cell) => (
                         <TableCell key={cell.id}>
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext()
+                          )}
                         </TableCell>
                       ))}
                     </TableRow>

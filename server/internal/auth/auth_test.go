@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"cmdb/server/internal/store"
+	"meridian/server/internal/store"
 )
 
 func TestPasswordHashAndCheck(t *testing.T) {

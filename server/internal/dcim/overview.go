@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"cmdb/server/internal/store"
+	"meridian/server/internal/store"
 )
 
 // RoomStat 是一个机房的容量聚合。

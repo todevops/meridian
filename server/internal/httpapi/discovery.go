@@ -6,8 +6,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"cmdb/server/internal/discovery"
-	"cmdb/server/internal/reconcile"
+	"meridian/server/internal/discovery"
+	"meridian/server/internal/reconcile"
 )
 
 // discoveryBatchRequest 与 DiscoveryRecordBatchRequest 对应。

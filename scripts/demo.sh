@@ -12,7 +12,7 @@ BASE_URL="${BASE_URL:-http://localhost:8080}"
 TMP_DIR="$(mktemp -d)"
 
 # Windows/Git Bash 下 server 为原生进程，传入的环境变量须为 Windows 路径。
-DB_FILE_UNIX="${TMP_DIR}/cmdb-demo.db"
+DB_FILE_UNIX="${TMP_DIR}/meridian-demo.db"
 if command -v cygpath >/dev/null 2>&1; then
   DB_SQLITE_PATH="$(cygpath -w "${DB_FILE_UNIX}")"
 else
@@ -62,7 +62,7 @@ echo "    服务已就绪"
 # 业务接口需认证：先登录获取会话 cookie。
 # shellcheck source=auth-login.sh
 source "${SCRIPT_DIR}/auth-login.sh"
-cmdb_login
+meridian_login
 
 echo "==> [3/5] 导入八层种子模型"
 BASE_URL="${BASE_URL}" bash "${SCRIPT_DIR}/seed-models.sh"
@@ -76,14 +76,14 @@ declare -A EXPECT=(
 for f in "${SCRIPT_DIR}"/sample-records/*.json; do
   name="${f##*/}"
   echo "--- POST /api/v1/discovery-records <- ${name}：${EXPECT[${name}]:-样例记录}"
-  curl -fsS -b "${CMDB_COOKIE_JAR}" -X POST "${BASE_URL}/api/v1/discovery-records" \
+  curl -fsS -b "${MERIDIAN_COOKIE_JAR}" -X POST "${BASE_URL}/api/v1/discovery-records" \
     -H 'Content-Type: application/json' \
     --data-binary "@${f}" | json_pp
 done
 
 echo "==> [5/5] 查询主机 CI 清单"
 HOST_MODEL_ID="$(
-  curl -fsS -b "${CMDB_COOKIE_JAR}" "${BASE_URL}/api/v1/models?keyword=host&page_size=200" | node -e '
+  curl -fsS -b "${MERIDIAN_COOKIE_JAR}" "${BASE_URL}/api/v1/models?keyword=host&page_size=200" | node -e '
     let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{
       const j=JSON.parse(d);
       const m=(j.items||[]).find(x=>x.code==="host");
@@ -92,7 +92,7 @@ HOST_MODEL_ID="$(
     })'
 )"
 echo "    host 模型 ID: ${HOST_MODEL_ID}"
-curl -fsS -b "${CMDB_COOKIE_JAR}" "${BASE_URL}/api/v1/cis?model_id=${HOST_MODEL_ID}" | json_pp
+curl -fsS -b "${MERIDIAN_COOKIE_JAR}" "${BASE_URL}/api/v1/cis?model_id=${HOST_MODEL_ID}" | json_pp
 echo "    注：调和为异步流程，若 items 为空说明记录仍在队列或发现池中"
 
 # 正常执行至此即全部步骤成功；trap 会停止 server 并清理临时目录。
