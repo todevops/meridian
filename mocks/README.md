@@ -1,6 +1,6 @@
 # Meridian Mock 平台（mocks）
 
-二期并行开发的官方接口 mock 平台：单二进制 `mockd` 并行启动 8 个 mock 系统，
+二三期并行开发的官方接口 mock 平台：单二进制 `mockd` 并行启动 9 个 mock 系统，
 数据全部来自 `fixtures/*.json`（内嵌进二进制，任意目录可运行）；
 vcsim 为 govmomi/simulator 进程内 vCenter 模拟器（不依赖 fixture）。
 
@@ -10,12 +10,13 @@ vcsim 为 govmomi/simulator 进程内 vCenter 模拟器（不依赖 fixture）�
 |---|---|---|---|
 | :19001 | n9e | `Authorization: Bearer <非空>`，否则 401（dashboards 除外） | `GET /api/n9e/targets`、`PUT /api/n9e/targets/{id}/tags`、`PUT /api/n9e/targets/{id}/note`、`GET /api/n9e/alert-cur-events?ident=`、`GET /dashboards/host?ident=`（HTML，无需鉴权） |
 | :19002 | NetBox | `Authorization: Token <非空>`，否则 403 | `GET /api/dcim/sites/`、`/api/dcim/racks/`、`/api/dcim/devices/`、`/api/ipam/prefixes/`、`/api/ipam/ip-addresses/`、`/api/ipam/vlans/`、`/api/virtualization/virtual-machines/` |
-| :19003 | LibreNMS | `X-Auth-Token: <非空>`，否则 401 | `GET /api/v0/devices`、`GET /api/v0/devices/{hostname}/ports` |
+| :19003 | LibreNMS | `X-Auth-Token: <非空>`，否则 401 | `GET /api/v0/devices`、`GET /api/v0/devices/{hostname}/ports`（端口含 lldp 邻居字段）、`GET /api/v0/devices/{hostname}/links`（LLDP 邻居表） |
 | :19004 | TSDB（Prometheus 兼容） | 无 | `GET /api/v1/query?query=<m>`、`GET /api/v1/label/instance/values?match[]=<m>` |
 | :19005 | 阿里云 | 无 | 任意方法任意路径 → ECS 数组 |
 | :19006 | 火山引擎 CloudControl | 无 | `POST /?Action=ListResources&Version=2021-01-01` |
 | :19007 | vcsim（vCenter 模拟器） | 任意凭据均可登录，约定 `user:pass` | `POST /sdk`（SOAP）、`GET /sdk/vimServiceVersions.xml`、`GET /about` |
 | :19008 | Oxidized | 无（只读端点） | `GET /nodes`、`GET /node/fetch/{name}`；启动时默认执行一次性上报流程（见下） |
+| :19010 | JumpServer | `Authorization: Token <非空>`，否则 401 | `GET/POST /api/v1/assets/assets/`、`GET/PATCH /api/v1/assets/assets/{id}/`、`POST /api/v1/assets/assets/{id}/disable/`、`GET /api/v1/assets/nodes/`（内存态，写后 GET 可读回） |
 
 每个端口均可用环境变量覆盖（如 `MOCK_N9E_ADDR=:29001`），对应关系见
 `internal/mocksys/mocksys.go` 的 `Load`。
@@ -29,7 +30,7 @@ go run ./cmd/mockd          # 前台运行，Ctrl+C 优雅退出
 # 或： go build -o mockd.exe ./cmd/mockd && ./mockd.exe
 ```
 
-启动日志会逐行打出 8 个系统的监听地址；vcsim 额外打印完整 SDK URL 与默认凭据。
+启动日志会逐行打出 9 个系统的监听地址；vcsim 额外打印完整 SDK URL 与默认凭据。
 
 ## Oxidized 一次性上报流程（:19008）
 
@@ -76,9 +77,12 @@ curl -s -H "Authorization: Token dev-token" http://127.0.0.1:19002/api/dcim/devi
 curl -s -H "Authorization: Token dev-token" "http://127.0.0.1:19002/api/ipam/ip-addresses/?limit=5&offset=10"
 curl -i http://127.0.0.1:19002/api/dcim/sites/                      # 反例：无 Token → 403
 
-# ---- LibreNMS（:19003）：4 台设备（华为/H3C/Cisco/锐捷）与端口清单 ----
+# ---- LibreNMS（:19003）：4 台设备（华为/H3C/Cisco/锐捷）与端口清单（端口含 lldp 邻居字段）----
 curl -s -H "X-Auth-Token: dev-token" http://127.0.0.1:19003/api/v0/devices
 curl -s -H "X-Auth-Token: dev-token" http://127.0.0.1:19003/api/v0/devices/bj-core-sw-01/ports
+# LLDP 邻居表（F-061 拓扑联调）：3 条双向互证链路 + 1 条主机接入链路，详见 fixtures/librenms-links.json
+curl -s -H "X-Auth-Token: dev-token" http://127.0.0.1:19003/api/v0/devices/bj-core-sw-01/links
+curl -s -H "X-Auth-Token: dev-token" http://127.0.0.1:19003/api/v0/devices/bj-srv-dl380-01/links
 curl -i http://127.0.0.1:19003/api/v0/devices                       # 反例：无 X-Auth-Token → 401
 
 # ---- TSDB（:19004）：mysql_up（2 实例）/postgresql_up（2 实例）/mongodb_up/redis_up/kafka_brokers/elasticsearch_cluster_health ----
@@ -103,6 +107,22 @@ curl -s -X POST http://127.0.0.1:19007/sdk
 curl -s http://127.0.0.1:19008/nodes                                # 节点清单（一次性流程跑完后反映 CMDB 真实清单）
 curl -s http://127.0.0.1:19008/node/fetch/bj-core-sw-01             # 该节点最新配置文本
 curl -i http://127.0.0.1:19008/node/fetch/no-such-node              # 反例：未知节点 → 404
+
+# ---- JumpServer（:19010）：资产 CRUD + 节点分组（F-071 同步联调），内存态写后读回 ----
+curl -s -H "Authorization: Token dev-token" http://127.0.0.1:19010/api/v1/assets/nodes/     # 节点树 /Default/电商平台/商城前台
+curl -s -H "Authorization: Token dev-token" http://127.0.0.1:19010/api/v1/assets/assets/    # 存量 2 台资产
+# 创建资产（nodes 填节点 id），响应 201 带回分配的 id
+curl -s -X POST -H "Authorization: Token dev-token" -H 'Content-Type: application/json' \
+  -d '{"name":"bj-srv-new-01","address":"10.30.1.31","platform":"Linux","protocols":[{"name":"ssh","port":22}],"nodes":["33333333-3333-3333-3333-333333333333"]}' \
+  http://127.0.0.1:19010/api/v1/assets/assets/
+# 更新资产分组 / 禁用资产（退役联动），写后 GET 读回可见
+curl -s -X PATCH -H "Authorization: Token dev-token" -H 'Content-Type: application/json' \
+  -d '{"nodes":["22222222-2222-2222-2222-222222222222"]}' \
+  http://127.0.0.1:19010/api/v1/assets/assets/1a2b3c4d-0001-4000-8000-000000000001/
+curl -s -X POST -H "Authorization: Token dev-token" \
+  http://127.0.0.1:19010/api/v1/assets/assets/1a2b3c4d-0001-4000-8000-000000000001/disable/
+curl -s -H "Authorization: Token dev-token" http://127.0.0.1:19010/api/v1/assets/assets/    # 读回验证
+curl -i http://127.0.0.1:19010/api/v1/assets/assets/                                        # 反例：无 Token → 401
 ```
 
 ## 数据设计说明
@@ -114,6 +134,13 @@ curl -i http://127.0.0.1:19008/node/fetch/no-such-node              # 反例：�
   `fixtures/n9e-alerts.json` 的 2 条当前告警（web-dup CPU 越限 + db-mysql-01 心跳失联）
   与 targets 的心跳停滞叙事呼应，供告警嵌入联调。
 - LibreNMS 的 `bj-acc-sw-01`（10.30.0.5）在 NetBox 中无记录，演示“发现池新增”。
+- `fixtures/librenms-links.json` 是拓扑联调的权威邻居表：`bj-core-sw-01 Gi0/1 ↔ bj-core-sw-02 Gi0/1`、
+  `bj-core-sw-02 Gi0/2 ↔ sh-dist-sw-01 Gi0/1`、`sh-dist-sw-01 Gi0/24 ↔ bj-acc-sw-01 Gi0/1`
+  三条双向互证链路 + `bj-srv-dl380-01 eth0 ↔ bj-acc-sw-01 Gi0/5` 主机接入链路；
+  端口清单（librenms-ports.json）中与 ifAlias 叙事一致的端口同步补了 `lldp` 邻居字段
+  （链路 1 与主机接入链路），远端端口名按对端设备自身命名习惯书写（真实 LLDP 行为）。
+- JumpServer 存量 2 台资产（`bj-srv-dl380-01`/`sh-srv-r750-01`）挂在节点树
+  `/Default/电商平台/商城前台` 下，供 F-071 同步器演示“更新分组/退役禁用”之外的存量对账。
 - NetBox IP 状态使用官方取值 `active/reserved/deprecated`，
   “已分配”语义以 `active` + `assigned_object_type/assigned_object_id` 表达。
 - `fixtures/volcengine-resources.json` 中 `Configuration` 以 JSON 对象书写便于维护，
@@ -127,6 +154,6 @@ curl -i http://127.0.0.1:19008/node/fetch/no-such-node              # 反例：�
 mocks/
 ├── cmd/mockd/main.go        # 入口：信号处理 + 启动全部系统
 ├── embed.go                 # go:embed 内嵌 fixtures/
-├── fixtures/*.json          # 15 个数据文件
-└── internal/mocksys/        # 8 个系统的 handler 实现（每系统一个文件）
+├── fixtures/*.json          # 17 个数据文件
+└── internal/mocksys/        # 9 个系统的 handler 实现（每系统一个文件）
 ```

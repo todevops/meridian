@@ -53,10 +53,12 @@ type CI struct {
 	// FieldSources 记录每个属性字段最后写入来源（属性编码 → 来源标识），
 	// 用于调和时的来源优先级合并；不对外暴露。
 	FieldSources datatypes.JSONMap `json:"-"`
-	Status       string            `gorm:"size:16;not null;index" json:"status"` // discovered/active/retired
-	Source       string            `gorm:"size:64;not null" json:"source"`       // 建档来源
-	CreatedAt    time.Time         `json:"created_at"`
-	UpdatedAt    time.Time         `json:"updated_at"`
+	// Status 为生命周期状态（F-026）：discovered/purchase/stock/active/maintenance/
+	// pending_retire/retired；合法流转见 internal/lifecycle。
+	Status    string    `gorm:"size:16;not null;index" json:"status"`
+	Source    string    `gorm:"size:64;not null" json:"source"` // 建档来源
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // CIRelation 是 CI 之间的关系实例。
@@ -140,13 +142,14 @@ const (
 	CredentialTypeSSHIPMI    = "ssh_ipmi"
 	CredentialTypeN9E        = "n9e"
 	CredentialTypeNetbox     = "netbox"
+	CredentialTypeJumpServer = "jumpserver"
 )
 
 // CredentialTypes 是全部合法凭据类型。
 var CredentialTypes = []string{
 	CredentialTypeVCenter, CredentialTypeAliyun, CredentialTypeVolc, CredentialTypeSNMP,
 	CredentialTypeDB, CredentialTypeKubeconfig, CredentialTypeSSHIPMI,
-	CredentialTypeN9E, CredentialTypeNetbox,
+	CredentialTypeN9E, CredentialTypeNetbox, CredentialTypeJumpServer,
 }
 
 // Credential 是凭据实体（F-005）：secret 明文绝不落库——
@@ -272,14 +275,61 @@ type Role struct {
 
 // AuditLog 是 CI 变更审计：所有写操作（人工与采集器）按字段记录变更明细。
 type AuditLog struct {
-	ID        string            `gorm:"primaryKey;size:36" json:"id"`
-	CIID      string            `gorm:"size:36;not null;index" json:"ci_id"`
-	Action    string            `gorm:"size:32;not null" json:"action"` // create/update/conflict
-	Source    string            `gorm:"size:64;not null" json:"source"`
+	ID     string `gorm:"primaryKey;size:36" json:"id"`
+	CIID   string `gorm:"size:36;not null;index" json:"ci_id"`
+	Action string `gorm:"size:32;not null" json:"action"` // create/update/conflict/lifecycle/retire
+	Source string `gorm:"size:64;not null" json:"source"`
+	// Operator 为操作者用户名（F-004）；采集器/调和等系统写入为 system，
+	// 存量数据为空串（视为 system）。
+	Operator  string            `gorm:"size:64;not null;default:'';index" json:"operator"`
 	Changes   datatypes.JSONMap `json:"changes"` // 字段变更明细：{"ip": {"old": "...", "new": "..."}}
 	Message   string            `gorm:"size:1024" json:"message,omitempty"`
 	CreatedAt time.Time         `json:"created_at"`
 }
+
+// AuditRule 是稽核规则实体（F-081）：声明式规则 = 模型过滤条件 + 断言表达式 + 待办模板，
+// 存库热更新，由稽核引擎每日执行或手动触发（POST /governance/rules/{id}/run）。
+// Assertion 表达式语法见 internal/auditrules（如 `not_empty(owner)`、
+// `not_empty(cluster_name) and backup_count > 0`）。
+type AuditRule struct {
+	ID        string `gorm:"primaryKey;size:36" json:"id"`
+	Name      string `gorm:"size:128;not null" json:"name"`
+	ModelCode string `gorm:"size:64;not null;index" json:"model_code"` // 目标模型编码（如 host）
+	// Filter 为 CI 属性等值过滤条件（如 {"env":"prod"}），空对象表示模型内全部 CI。
+	Filter    datatypes.JSONMap `json:"filter"`
+	Assertion string            `gorm:"size:512;not null" json:"assertion"` // 断言表达式，为真即合规
+	Message   string            `gorm:"size:512;not null" json:"message"`   // 违规时生成待办的标题
+	Enabled   bool              `gorm:"not null;default:true;index" json:"enabled"`
+	// DryRun 为演练模式：只出违规报告，不产生/关闭待办。
+	DryRun    bool       `gorm:"not null;default:false" json:"dry_run"`
+	LastRunAt *time.Time `json:"last_run_at,omitempty"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+}
+
+// TableName 显式指定表名。
+func (AuditRule) TableName() string { return "audit_rules" }
+
+// 稽核待办状态。
+const (
+	TodoStatusOpen   = "open"
+	TodoStatusClosed = "closed"
+)
+
+// GovernanceTodo 是整改待办实体（F-081）：断言失败的 CI 按 (rule_id, ci_id) 去重
+// （仅保留一条 open 待办，由引擎在创建前查询判重）；规则下次执行通过时自动关闭。
+type GovernanceTodo struct {
+	ID        string     `gorm:"primaryKey;size:36" json:"id"`
+	RuleID    string     `gorm:"size:36;not null;index:idx_todo_rule_ci" json:"rule_id"`
+	CIID      string     `gorm:"size:36;not null;index:idx_todo_rule_ci" json:"ci_id"`
+	Title     string     `gorm:"size:512;not null" json:"title"`
+	Status    string     `gorm:"size:16;not null;index" json:"status"` // open/closed
+	CreatedAt time.Time  `json:"created_at"`
+	ClosedAt  *time.Time `json:"closed_at,omitempty"`
+}
+
+// TableName 显式指定表名。
+func (GovernanceTodo) TableName() string { return "governance_todos" }
 
 // IPPrefix 是 IPAM 前缀（网段）实体：CIDR 为掩码规范化后的网络地址形式，
 // parent_id 指向父前缀构成树形层级（同级前缀不允许重叠）。
@@ -347,6 +397,8 @@ func AllModels() []any {
 		&DiscoveryTask{},
 		&DiscoveryTaskRun{},
 		&AlertEvent{},
+		&AuditRule{},
+		&GovernanceTodo{},
 	}
 }
 
@@ -367,6 +419,8 @@ func (a *CredentialAudit) BeforeCreate(_ *gorm.DB) error    { return ensureID(&a
 func (t *DiscoveryTask) BeforeCreate(_ *gorm.DB) error      { return ensureID(&t.ID) }
 func (r *DiscoveryTaskRun) BeforeCreate(_ *gorm.DB) error   { return ensureID(&r.ID) }
 func (a *AlertEvent) BeforeCreate(_ *gorm.DB) error         { return ensureID(&a.ID) }
+func (r *AuditRule) BeforeCreate(_ *gorm.DB) error          { return ensureID(&r.ID) }
+func (t *GovernanceTodo) BeforeCreate(_ *gorm.DB) error     { return ensureID(&t.ID) }
 
 // ensureID 在主键为空时生成新 UUID。
 func ensureID(id *string) error {

@@ -17,7 +17,7 @@ const Collector = "n9e-target-puller"
 // MapTarget 把一个 n9e Target 映射为标准发现记录：
 //
 //	Ident → ident（调和辅助键）、HostIp → ip、OS → os、CpuNum → cpu_num、
-//	Arch → arch、AgentVersion → agent_version、UpdateAt → last_seen_at（RFC3339）、
+//	Arch → arch、AgentVersion → agent_version、UpdateAt → last_heartbeat_at（RFC3339）、
 //	GroupName → biz_group、Tags/HostTags → tags（合并去重）。
 func MapTarget(t Target, now time.Time) reconcile.Record {
 	occurredAt := now
@@ -38,7 +38,7 @@ func MapTarget(t Target, now time.Time) reconcile.Record {
 		"tags":          mergeTags(string(t.Tags), string(t.HostTags)),
 	}
 	if lastSeen != "" {
-		attrs["last_seen_at"] = lastSeen
+		attrs["last_heartbeat_at"] = lastSeen
 	}
 	return reconcile.Record{
 		Source:         Source,

@@ -1,7 +1,7 @@
 "use client"
 
-// 全局左侧导航（F-090 六组结构）：总览 + 五个折叠组，当前路由高亮；
-// 组折叠状态记忆于 localStorage；发现池入口轮询待处理数徽标（60s）；
+// 全局左侧导航（F-090 六组结构）：总览组顶部独立入口 + 五个折叠组，当前路由高亮；
+// 组折叠状态记忆于 localStorage；发现池待处理数、未确认告警数、整改待办数三路徽标轮询（60s）；
 // 菜单项按 GET /auth/me 权限点过滤；底部为当前用户与退出登录。
 // 登录页不渲染侧边栏。
 
@@ -19,13 +19,14 @@ import {
   getCurrentUser,
   listAlerts,
   listDiscoveryPool,
+  listGovernanceTodos,
   logout,
   type CurrentUser,
 } from "@/lib/api"
 import {
   isNavItemActive,
   visibleNavGroups,
-  OVERVIEW_ITEM,
+  TOP_ITEMS,
   type NavItemDef,
 } from "@/lib/nav"
 
@@ -65,6 +66,7 @@ export function AppSidebar() {
   const [collapsed, setCollapsed] = useState<string[]>([])
   const [poolPending, setPoolPending] = useState<number | null>(null)
   const [alertsUnacked, setAlertsUnacked] = useState<number | null>(null)
+  const [governanceOpen, setGovernanceOpen] = useState<number | null>(null)
 
   useEffect(() => {
     if (pathname === "/login") return
@@ -93,7 +95,7 @@ export function AppSidebar() {
     })
   }, [])
 
-  // 发现池待处理数与未确认告警数徽标：登录后 60s 轮询
+  // 发现池待处理数、未确认告警数与整改待办数徽标：登录后 60s 轮询
   useEffect(() => {
     if (pathname === "/login" || !user) return
     let cancelled = false
@@ -111,6 +113,13 @@ export function AppSidebar() {
         })
         .catch(() => {
           if (!cancelled) setAlertsUnacked(null)
+        })
+      listGovernanceTodos({ status: "open", page: 1, page_size: 1 })
+        .then((res) => {
+          if (!cancelled) setGovernanceOpen(res.total)
+        })
+        .catch(() => {
+          if (!cancelled) setGovernanceOpen(null)
         })
     }
     poll()
@@ -132,7 +141,9 @@ export function AppSidebar() {
         ? poolPending
         : item.badge === "alerts-unacked"
           ? alertsUnacked
-          : null
+          : item.badge === "governance-todos"
+            ? governanceOpen
+            : null
     if (count === null || count <= 0) return null
     return (
       <span className="ml-auto rounded-full bg-amber-500/15 px-1.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
@@ -158,16 +169,17 @@ export function AppSidebar() {
         </Link>
       </div>
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
-        <Link
-          href={OVERVIEW_ITEM.href}
-          aria-current={
-            isNavItemActive(pathname, OVERVIEW_ITEM) ? "page" : undefined
-          }
-          className={navLinkClass(isNavItemActive(pathname, OVERVIEW_ITEM))}
-        >
-          <OVERVIEW_ITEM.icon className="size-4 shrink-0" />
-          {OVERVIEW_ITEM.label}
-        </Link>
+        {TOP_ITEMS.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            aria-current={isNavItemActive(pathname, item) ? "page" : undefined}
+            className={navLinkClass(isNavItemActive(pathname, item))}
+          >
+            <item.icon className="size-4 shrink-0" />
+            {item.label}
+          </Link>
+        ))}
         {groups.map((group) => {
           const isCollapsed = collapsed.includes(group.key)
           const groupActive = group.items.some((item) =>

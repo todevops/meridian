@@ -13,16 +13,19 @@ import {
   Cloud as CloudIcon,
   Container as ContainerIcon,
   Database as DatabaseIcon,
+  Gauge as GaugeIcon,
   KeyRound as KeyRoundIcon,
   Layers as LayersIcon,
   ListChecks as ListChecksIcon,
   Loader2 as Loader2Icon,
   Network as NetworkIcon,
   Radar as RadarIcon,
+  ScrollText as ScrollTextIcon,
   Search as SearchIcon,
   Server as ServerIcon,
   Settings as SettingsIcon,
   Share2 as Share2Icon,
+  ShieldCheck as ShieldCheckIcon,
   UsersRound as UsersRoundIcon,
   type LucideIcon,
 } from "lucide-react"
@@ -58,6 +61,18 @@ interface SectionGroup {
 }
 
 const SECTION_GROUPS: SectionGroup[] = [
+  {
+    key: "overview",
+    label: "总览",
+    cards: [
+      {
+        href: "/dashboard",
+        icon: GaugeIcon,
+        title: "运营仪表盘",
+        description: "数据质量五指标看板：完整率、关联完整率、孤岛、鲜度与监控覆盖率",
+      },
+    ],
+  },
   {
     key: "assets",
     label: "资产管理",
@@ -108,13 +123,19 @@ const SECTION_GROUPS: SectionGroup[] = [
   },
   {
     key: "discovery",
-    label: "发现与采集",
+    label: "发现与治理",
     cards: [
       {
         href: "/pool",
         icon: RadarIcon,
         title: "发现池",
         description: "待人工处置的发现记录：确认入库或忽略",
+      },
+      {
+        href: "/governance",
+        icon: ShieldCheckIcon,
+        title: "稽核与整改",
+        description: "稽核规则管理、整改待办闭环与待退役资产会签处置",
       },
       {
         href: "/discovery",
@@ -144,13 +165,19 @@ const SECTION_GROUPS: SectionGroup[] = [
   },
   {
     key: "system",
-    label: "系统管理",
+    label: "平台配置",
     cards: [
       {
         href: "/models",
         icon: BoxesIcon,
         title: "模型管理",
         description: "定义 CI 模型的属性、校验规则与模型间关系",
+      },
+      {
+        href: "/audit",
+        icon: ScrollTextIcon,
+        title: "审计日志",
+        description: "按 CI / 操作者 / 来源回放全部写操作与调和历史",
       },
       {
         href: "/settings/users",

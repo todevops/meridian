@@ -1,6 +1,6 @@
 "use client"
 
-// 主机详情：属性分组卡片（Core/Capability/Context）+ 关系面板 + 审计时间线占位
+// 主机详情：属性分组卡片（Core/Capability/Context）+ 关系面板 + 审计时间线 + 生命周期状态流转
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
@@ -15,25 +15,59 @@ import { N9EPanel } from "@/components/n9e-panel"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@workspace/ui/components/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   ApiError,
   getCI,
   getModel,
+  listAuditLogs,
   listCIRelations,
+  transitionCILifecycle,
   type AttributeDefinition,
+  type AuditLogItem,
   type CI,
   type CIRelation,
   type CIStatus,
   type Model,
 } from "@/lib/api"
-import { CI_STATUS_LABELS } from "@/lib/labels"
+import { auditActionLabel, CI_STATUS_LABELS } from "@/lib/labels"
 import { attrText, formatDateTime, pickAttr } from "@/lib/format"
 
 const STATUS_VARIANTS: Record<CIStatus, "success" | "secondary" | "outline"> = {
   active: "success",
   discovered: "secondary",
   retired: "outline",
+}
+
+/** 生命周期状态流转的本地兜底映射（后端未下发 lifecycle 字段时使用） */
+const LIFECYCLE_TRANSITIONS: Record<CIStatus, CIStatus[]> = {
+  discovered: ["active", "retired"],
+  active: ["retired"],
+  retired: [],
+}
+
+/** 从 CI 的 lifecycle 字段提取合法目标态；字段缺失或形状不符时回退本地映射表 */
+function allowedTransitions(ci: CI): string[] {
+  const raw = (ci as unknown as { lifecycle?: unknown }).lifecycle
+  if (Array.isArray(raw)) {
+    return raw.filter((v): v is string => typeof v === "string")
+  }
+  if (typeof raw === "object" && raw !== null) {
+    for (const key of ["allowed", "allowed_transitions", "targets", "to"]) {
+      const value = (raw as Record<string, unknown>)[key]
+      if (Array.isArray(value)) {
+        return value.filter((v): v is string => typeof v === "string")
+      }
+    }
+  }
+  return LIFECYCLE_TRANSITIONS[ci.status]
 }
 
 /** 对端 CI 的展示名候选属性编码 */
@@ -71,8 +105,11 @@ export function HostDetail({ id }: { id: string }) {
   const [ci, setCI] = useState<CI | null>(null)
   const [model, setModel] = useState<Model | null>(null)
   const [relations, setRelations] = useState<CIRelation[]>([])
+  const [audits, setAudits] = useState<AuditLogItem[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [transitioning, setTransitioning] = useState(false)
+  const [transitionError, setTransitionError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -80,13 +117,15 @@ export function HostDetail({ id }: { id: string }) {
     try {
       const ciData = await getCI(id)
       setCI(ciData)
-      // 模型定义与关系列表并行加载；二者失败不阻塞 CI 本体展示
-      const [modelResult, relationsResult] = await Promise.allSettled([
+      // 模型定义、关系列表与审计时间线并行加载；三者失败不阻塞 CI 本体展示
+      const [modelResult, relationsResult, auditsResult] = await Promise.allSettled([
         getModel(ciData.model_id),
         listCIRelations(id),
+        listAuditLogs({ ci_id: id, page: 1, page_size: 20 }),
       ])
       setModel(modelResult.status === "fulfilled" ? modelResult.value : null)
       setRelations(relationsResult.status === "fulfilled" ? relationsResult.value.items : [])
+      setAudits(auditsResult.status === "fulfilled" ? auditsResult.value.items : null)
     } catch (err) {
       setError(
         err instanceof ApiError
@@ -103,6 +142,24 @@ export function HostDetail({ id }: { id: string }) {
   useEffect(() => {
     void load()
   }, [load])
+
+  /** 生命周期状态流转 */
+  const onTransition = useCallback(
+    async (to: string) => {
+      if (!to || transitioning) return
+      setTransitioning(true)
+      setTransitionError(null)
+      try {
+        const updated = await transitionCILifecycle(id, to)
+        setCI((prev) => (prev ? { ...prev, ...updated } : updated))
+      } catch (err) {
+        setTransitionError(err instanceof ApiError ? err.message : "状态流转失败")
+      } finally {
+        setTransitioning(false)
+      }
+    },
+    [id, transitioning],
+  )
 
   const groups = useMemo(() => {
     const result: Record<GroupKey, DisplayAttr[]> = { core: [], capability: [], context: [] }
@@ -165,6 +222,7 @@ export function HostDetail({ id }: { id: string }) {
   const title = pickAttr(ci.attributes, PEER_NAME_CODES)
   // n9e 面板标识：取 CI attributes.ident，缺失时面板自身降级为未配置占位
   const ident = attrText(ci.attributes.ident)
+  const transitions = allowedTransitions(ci)
 
   return (
     <div className="flex w-full flex-col gap-5 p-6">
@@ -181,6 +239,31 @@ export function HostDetail({ id }: { id: string }) {
           <Badge variant={STATUS_VARIANTS[ci.status]}>{CI_STATUS_LABELS[ci.status]}</Badge>
           <Badge variant="outline">来源：{ci.source}</Badge>
           {model ? <Badge variant="secondary">模型：{model.name}</Badge> : null}
+          {transitions.length > 0 && (
+            <Select
+              value=""
+              onValueChange={(v) => {
+                if (v) void onTransition(v)
+              }}
+              disabled={transitioning}
+            >
+              <SelectTrigger className="h-8 w-36">
+                <SelectValue>
+                  {() => (transitioning ? "流转中…" : "状态流转")}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {transitions.map((to) => (
+                  <SelectItem key={to} value={to}>
+                    {CI_STATUS_LABELS[to as CIStatus] ?? to}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {transitionError && (
+            <span className="text-xs text-destructive">{transitionError}</span>
+          )}
         </div>
         <p className="text-xs text-muted-foreground">
           创建于 {formatDateTime(ci.created_at)} · 更新于 {formatDateTime(ci.updated_at)}
@@ -261,18 +344,65 @@ export function HostDetail({ id }: { id: string }) {
           </CardContent>
         </Card>
 
-        {/* 审计时间线占位 */}
-        <Card className="border-dashed">
+        {/* 审计时间线（F-004）：回放该 CI 最近 20 条写操作与调和历史 */}
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock3Icon className="size-4" /> 审计时间线
             </CardTitle>
-            <CardDescription>按 CI 回放全部写操作与调和历史</CardDescription>
+            <CardDescription>
+              该 CI 的属性变更、状态流转与来源记录；完整回放见
+              <Link href={`/audit`} className="ml-1 text-primary underline-offset-2 hover:underline">
+                审计日志
+              </Link>
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-xs text-muted-foreground">
-              待审计 API 上线后接入：届时此处将展示该 CI 的属性变更、状态流转与来源记录时间线。
-            </p>
+            {audits === null ? (
+              <div className="flex flex-col gap-2">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} className="h-8 w-full" />
+                ))}
+              </div>
+            ) : audits.length === 0 ? (
+              <p className="text-xs text-muted-foreground">暂无审计记录</p>
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {audits.map((item) => {
+                  const changes =
+                    item.changes && Object.keys(item.changes).length > 0
+                      ? JSON.stringify(item.changes, null, 2)
+                      : ""
+                  const summary = changes
+                    ? JSON.stringify(item.changes)
+                    : ""
+                  return (
+                    <li
+                      key={item.id}
+                      className="flex flex-col gap-1 rounded-lg border px-3 py-2 text-xs"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="secondary">{auditActionLabel(item.action)}</Badge>
+                        <span className="text-muted-foreground">
+                          {item.operator ?? "系统"} · {item.source}
+                        </span>
+                        <span className="ml-auto text-muted-foreground">
+                          {formatDateTime(item.created_at)}
+                        </span>
+                      </div>
+                      {summary && (
+                        <p
+                          className="truncate font-mono text-xs text-muted-foreground"
+                          title={changes}
+                        >
+                          {summary.length > 120 ? `${summary.slice(0, 120)}…` : summary}
+                        </p>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
           </CardContent>
         </Card>
       </div>

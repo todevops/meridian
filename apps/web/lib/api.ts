@@ -1114,3 +1114,267 @@ export function listN9EAlerts(ident: string): Promise<N9EAlertItem[]> {
     query: { ident },
   })
 }
+
+// ---------- 数据质量看板（F-080，五指标 + 下钻缺失清单） ----------
+
+/** 单模型质量指标；百分比字段约定为 0-100 */
+export interface ModelQualityMetric {
+  model_id: string
+  code: string
+  name: string
+  /** 属性完整率 */
+  completeness: number
+  /** 关联完整率 */
+  relation_completeness: number
+  /** 孤岛 CI 数（无任何关系的 CI） */
+  orphan_count: number
+  /** 数据鲜度：陈旧 CI 占比 */
+  stale_pct: number
+  /** 监控覆盖率指标：在用主机无 n9e 心跳占比（部分模型不适用，可缺省） */
+  no_heartbeat_pct?: number
+}
+
+/** 监控覆盖率双指标（全局口径） */
+export interface MonitorCoverage {
+  /** CMDB 在用主机无 n9e 心跳占比 */
+  no_heartbeat_pct: number
+  /** n9e targets 无 CMDB CI 占比 */
+  no_ci_pct: number
+}
+
+export interface QualityDashboard {
+  models: ModelQualityMetric[]
+  monitor: MonitorCoverage
+}
+
+export function getQualityDashboard(): Promise<QualityDashboard> {
+  return request<QualityDashboard>("/v1/dashboard/quality")
+}
+
+/** 质量指标下钻维度 */
+export type QualityMetricKey =
+  | "completeness"
+  | "relation_completeness"
+  | "orphan"
+  | "stale"
+  | "no_heartbeat"
+
+export interface QualityDrilldownParams {
+  model_id: string
+  metric: QualityMetricKey
+  page?: number
+  page_size?: number
+}
+
+/** 下钻返回标准 CI 分页：对应指标在该模型下的缺失/异常 CI 清单 */
+export function getQualityDrilldown(
+  params: QualityDrilldownParams
+): Promise<Paged<CI>> {
+  return request<Paged<CI>>("/v1/dashboard/quality/drilldown", {
+    query: { ...params },
+  })
+}
+
+// ---------- 稽核规则与整改待办（F-081） ----------
+
+/** 稽核规则（声明式：模型过滤条件 + 断言表达式 + 待办模板） */
+export interface GovernanceRule {
+  id: string
+  name: string
+  /** 目标模型编码 */
+  model_code: string
+  /** 过滤条件表达式（圈定规则适用的 CI 范围） */
+  filter: string
+  /** 断言表达式（不满足即违规） */
+  assertion: string
+  /** 生成整改待办时的文案模板 */
+  message: string
+  enabled: boolean
+  /** 演练模式：只评估不生成待办 */
+  dry_run: boolean
+  /** 最近一次执行时间（手动或定时） */
+  last_run_at?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+export interface GovernanceRuleRequest {
+  name: string
+  model_code: string
+  filter: string
+  assertion: string
+  message: string
+  enabled?: boolean
+  dry_run?: boolean
+}
+
+/** 全字段可选，仅更新传入字段 */
+export type GovernanceRulePatchRequest = Partial<GovernanceRuleRequest>
+
+export interface ListGovernanceRulesParams {
+  page?: number
+  page_size?: number
+}
+
+export function listGovernanceRules(
+  params: ListGovernanceRulesParams = {}
+): Promise<Paged<GovernanceRule>> {
+  return request<Paged<GovernanceRule>>("/v1/governance/rules", {
+    query: { ...params },
+  })
+}
+
+export function createGovernanceRule(
+  body: GovernanceRuleRequest
+): Promise<GovernanceRule> {
+  return request<GovernanceRule>("/v1/governance/rules", {
+    method: "POST",
+    body,
+  })
+}
+
+export function patchGovernanceRule(
+  ruleId: string,
+  body: GovernanceRulePatchRequest
+): Promise<GovernanceRule> {
+  return request<GovernanceRule>(
+    `/v1/governance/rules/${encodeURIComponent(ruleId)}`,
+    { method: "PATCH", body }
+  )
+}
+
+/** 手动执行响应：契约未固定形状，原样透传给调用方提取提示文案 */
+export type RunGovernanceRuleResponse = Record<string, unknown>
+
+export function runGovernanceRule(
+  ruleId: string
+): Promise<RunGovernanceRuleResponse> {
+  return request<RunGovernanceRuleResponse>(
+    `/v1/governance/rules/${encodeURIComponent(ruleId)}/run`,
+    { method: "POST" }
+  )
+}
+
+/** 整改待办状态 */
+export type GovernanceTodoStatus = "open" | "closed"
+
+/** 整改待办 */
+export interface GovernanceTodo {
+  id: string
+  rule_id: string
+  /** 冗余的规则名称，便于列表直接展示 */
+  rule_name?: string
+  ci_id?: string
+  title: string
+  status: GovernanceTodoStatus
+  created_at: string
+  closed_at?: string | null
+}
+
+export interface ListGovernanceTodosParams {
+  status?: GovernanceTodoStatus
+  page?: number
+  page_size?: number
+}
+
+export function listGovernanceTodos(
+  params: ListGovernanceTodosParams = {}
+): Promise<Paged<GovernanceTodo>> {
+  return request<Paged<GovernanceTodo>>("/v1/governance/todos", {
+    query: { ...params },
+  })
+}
+
+export function closeGovernanceTodo(todoId: string): Promise<GovernanceTodo> {
+  return request<GovernanceTodo>(
+    `/v1/governance/todos/${encodeURIComponent(todoId)}/close`,
+    { method: "POST" }
+  )
+}
+
+// ---------- CI 生命周期（F-026：状态流转 + 退役三方会签 + 联动） ----------
+
+/** 状态流转：返回更新后的 CI */
+export function transitionCILifecycle(
+  ciId: string,
+  to: string
+): Promise<CI> {
+  return request<CI>(`/v1/cis/${encodeURIComponent(ciId)}/lifecycle`, {
+    method: "POST",
+    body: { to },
+  })
+}
+
+/** 待退役候选项：三方会签（心跳停更 + 扫描不存活 + 云无实例）全满足才可退役 */
+export interface RetireCandidate {
+  ci: CI
+  /** 心跳已停更（超过阈值未上报） */
+  heartbeat_ok: boolean
+  /** 扫描连续不存活 */
+  scan_ok: boolean
+  /** 云 / vCenter 已无实例 */
+  cloud_ok: boolean
+  /** 三方会签全部满足，允许执行退役 */
+  eligible: boolean
+}
+
+export interface RetireCandidatesResponse {
+  items: RetireCandidate[]
+}
+
+export function listRetireCandidates(): Promise<RetireCandidatesResponse> {
+  return request<RetireCandidatesResponse>("/v1/lifecycle/retire-candidates")
+}
+
+/** 退役联动动作结果（n9e 摘除 target、JumpServer 禁用、IPAM 回收等） */
+export interface RetireActionResult {
+  type: string
+  ok: boolean
+  detail?: string
+}
+
+export interface RetireCIResponse {
+  ci_id: string
+  actions: RetireActionResult[]
+}
+
+export function retireCI(ciId: string, confirm: boolean): Promise<RetireCIResponse> {
+  return request<RetireCIResponse>("/v1/lifecycle/retire", {
+    method: "POST",
+    body: { ci_id: ciId, confirm },
+  })
+}
+
+// ---------- 审计日志（F-004：按 CI/操作者/来源过滤回放） ----------
+
+/** 审计日志条目 */
+export interface AuditLogItem {
+  id: string
+  ci_id?: string
+  /** 动作（create/update/delete/lifecycle/confirm 等） */
+  action: string
+  /** 操作者（用户名或采集器标识） */
+  operator?: string
+  /** 来源（web/console/collector 等） */
+  source: string
+  /** 变更内容（字段级前后值，结构随动作而变） */
+  changes?: Record<string, unknown> | null
+  created_at: string
+}
+
+export interface ListAuditLogsParams {
+  ci_id?: string
+  operator?: string
+  source?: string
+  /** 时间范围（ISO 时间） */
+  from?: string
+  to?: string
+  page?: number
+  page_size?: number
+}
+
+export function listAuditLogs(
+  params: ListAuditLogsParams = {}
+): Promise<Paged<AuditLogItem>> {
+  return request<Paged<AuditLogItem>>("/v1/audit", { query: { ...params } })
+}

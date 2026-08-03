@@ -28,14 +28,14 @@ var (
 	ErrIPNotInPrefix   = errors.New("IP 不在前缀网段内")
 	ErrDuplicateIP     = errors.New("IP 已登记")
 	ErrInsufficientIPs = errors.New("前缀内空闲 IP 不足")
-	ErrInvalidStatus   = errors.New("status 取值非法（used/reserved）")
+	ErrInvalidStatus   = errors.New("status 取值非法（used/reserved/idle）")
 	ErrInvalidCount    = errors.New("count 必须为 1-1024 的整数")
 	ErrInvalidVLAN     = errors.New("vlan_id 必须为 1-4094 的整数")
 	ErrIPNotFound      = errors.New("IP 登记记录不存在")
 )
 
-// IP 状态枚举：free 不落库（未登记即空闲），仅持久化 used/reserved。
-var ipStatuses = map[string]bool{"used": true, "reserved": true}
+// IP 状态枚举：free 不落库（未登记即空闲）；idle 为退役联动（F-026）释放后的闲置登记。
+var ipStatuses = map[string]bool{"used": true, "reserved": true, "idle": true}
 
 // MaxAllocateCount 是单次 allocate 的分配上限，防止误操作耗尽连接资源。
 const MaxAllocateCount = 1024

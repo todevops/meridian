@@ -54,6 +54,38 @@ func newN9E() (http.Handler, error) {
 			"err": "",
 		})
 	})
+	// 摘除监控目标（退役联动）：DELETE /api/n9e/targets，body {"ids":[...]}
+	mux.HandleFunc("DELETE /api/n9e/targets", func(w http.ResponseWriter, r *http.Request) {
+		if bearerToken(r) == "" {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "missing or empty bearer token"})
+			return
+		}
+		var req struct {
+			IDs []int64 `json:"ids"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"err": "invalid body: " + err.Error()})
+			return
+		}
+		want := make(map[int64]bool, len(req.IDs))
+		for _, id := range req.IDs {
+			want[id] = true
+		}
+		st.mu.Lock()
+		kept := st.targets[:0]
+		removed := 0
+		for _, t := range st.targets {
+			idf, _ := t["id"].(float64)
+			if want[int64(idf)] {
+				removed++
+				continue
+			}
+			kept = append(kept, t)
+		}
+		st.targets = kept
+		st.mu.Unlock()
+		writeJSON(w, http.StatusOK, map[string]any{"dat": map[string]any{"removed": removed}, "err": ""})
+	})
 	mux.HandleFunc("PUT /api/n9e/targets/{id}/tags", func(w http.ResponseWriter, r *http.Request) {
 		st.handleTargetWrite(w, r, "tags")
 	})

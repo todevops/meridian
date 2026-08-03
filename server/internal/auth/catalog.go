@@ -37,6 +37,11 @@ const (
 	PermTaskWrite       = "task:write"
 	PermAlertRead       = "alert:read"
 	PermAlertWrite      = "alert:write"
+	PermDashboardRead   = "dashboard:read"
+	PermGovernanceRead  = "governance:read"
+	PermGovernanceWrite = "governance:write"
+	PermLifecycleWrite  = "lifecycle:write"
+	PermAuditRead       = "audit:read"
 )
 
 // Catalog 是系统全部权限点的固定目录，/api/v1/permissions 接口据此返回。
@@ -59,6 +64,11 @@ var Catalog = []Permission{
 	{PermTaskWrite, "采集任务维护", "新建、修改与手动触发采集任务"},
 	{PermAlertRead, "告警查询", "查询告警事件列表"},
 	{PermAlertWrite, "告警维护", "确认（ack）告警事件"},
+	{PermDashboardRead, "质量看板查询", "查询数据质量看板指标与下钻清单"},
+	{PermGovernanceRead, "稽核查询", "查询稽核规则与整改待办"},
+	{PermGovernanceWrite, "稽核维护", "维护稽核规则、手动执行与关闭整改待办"},
+	{PermLifecycleWrite, "生命周期维护", "CI 状态流转与退役联动执行"},
+	{PermAuditRead, "审计查询", "查询 CI 变更审计日志"},
 }
 
 // catalogSet 用于校验权限点编码合法性。
@@ -102,15 +112,17 @@ func allPermissionCodes() []string {
 // builtinRoles 是内置角色定义，Seed 时幂等写入。
 var builtinRoles = []builtinRole{
 	{"admin", "管理员", "拥有全部权限", allPermissionCodes()},
-	{"operator", "运维", "模型/CI/IPAM/DCIM 的日常维护、发现记录上报与发现池裁决、凭据与采集任务管理、告警确认", []string{
+	{"operator", "运维", "模型/CI/IPAM/DCIM 的日常维护、发现记录上报与发现池裁决、凭据与采集任务管理、告警确认、质量看板与稽核治理、生命周期流转、审计查询", []string{
 		PermModelRead, PermModelWrite, PermCIRead, PermCIWrite, PermDiscoveryRead, PermDiscoveryWrite,
 		PermIPAMRead, PermIPAMWrite, PermDCIMRead, PermDCIMWrite,
 		PermCredentialRead, PermCredentialWrite, PermTaskRead, PermTaskWrite,
 		PermAlertRead, PermAlertWrite,
+		PermDashboardRead, PermGovernanceRead, PermGovernanceWrite, PermLifecycleWrite, PermAuditRead,
 	}},
-	{"viewer", "只读", "仅查询模型、CI、IPAM/DCIM、凭据元数据、采集任务、告警与执行调和预览", []string{
+	{"viewer", "只读", "仅查询模型、CI、IPAM/DCIM、凭据元数据、采集任务、告警与执行调和预览、质量看板/稽核/审计只读", []string{
 		PermModelRead, PermCIRead, PermDiscoveryRead, PermIPAMRead, PermDCIMRead,
 		PermCredentialRead, PermTaskRead, PermAlertRead,
+		PermDashboardRead, PermGovernanceRead, PermAuditRead,
 	}},
 	// collector 仅供采集器服务账号上报发现记录（D-01）：收缩为 discovery:write + model:read。
 	// 注意：需要写模型的场景（如 NetBox 迁移器）必须使用独立服务账号并单独授权

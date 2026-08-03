@@ -15,8 +15,11 @@ import {
   ListChecks as ListChecksIcon,
   Network as NetworkIcon,
   Radar as RadarIcon,
+  ScrollText as ScrollTextIcon,
   Server as ServerIcon,
   Settings as SettingsIcon,
+  ShieldCheck as ShieldCheckIcon,
+  Gauge as GaugeIcon,
   UsersRound as UsersRoundIcon,
   type LucideIcon,
 } from "lucide-react"
@@ -28,7 +31,7 @@ export interface NavItemDef {
   /** 可见所需权限点，缺省表示登录即可见 */
   permission?: string
   /** 待处理数徽标来源 */
-  badge?: "pool-pending" | "alerts-unacked"
+  badge?: "pool-pending" | "alerts-unacked" | "governance-todos"
   /** 是否仅在精确匹配时高亮（如 /） */
   exact?: boolean
 }
@@ -46,6 +49,16 @@ export const OVERVIEW_ITEM: NavItemDef = {
   icon: LayoutDashboardIcon,
   exact: true,
 }
+
+/** 运营仪表盘：总览组的第 2 个顶部独立入口 */
+export const DASHBOARD_ITEM: NavItemDef = {
+  href: "/dashboard",
+  label: "运营仪表盘",
+  icon: GaugeIcon,
+}
+
+/** 侧边栏顶部独立入口（总览组），不属于任何折叠组 */
+export const TOP_ITEMS: NavItemDef[] = [OVERVIEW_ITEM, DASHBOARD_ITEM]
 
 export const NAV_GROUPS: NavGroupDef[] = [
   {
@@ -67,9 +80,15 @@ export const NAV_GROUPS: NavGroupDef[] = [
   },
   {
     key: "discovery",
-    label: "发现与采集",
+    label: "发现与治理",
     items: [
       { href: "/pool", label: "发现池", icon: RadarIcon, badge: "pool-pending" },
+      {
+        href: "/governance",
+        label: "稽核与整改",
+        icon: ShieldCheckIcon,
+        badge: "governance-todos",
+      },
       {
         href: "/alerts",
         label: "告警事件",
@@ -98,9 +117,10 @@ export const NAV_GROUPS: NavGroupDef[] = [
   },
   {
     key: "system",
-    label: "系统管理",
+    label: "平台配置",
     items: [
       { href: "/models", label: "模型管理", icon: BoxesIcon },
+      { href: "/audit", label: "审计日志", icon: ScrollTextIcon },
       {
         href: "/settings/users",
         label: "用户管理",
@@ -137,6 +157,11 @@ export function visibleNavGroups(permissions: string[] | undefined): NavGroupDef
 export function breadcrumbFor(pathname: string): { group: string; page: string } | null {
   if (pathname === "/" || pathname === "") {
     return { group: "", page: OVERVIEW_ITEM.label }
+  }
+  for (const item of TOP_ITEMS) {
+    if (item.href !== "/" && (pathname === item.href || pathname.startsWith(`${item.href}/`))) {
+      return { group: "", page: item.label }
+    }
   }
   // 最长前缀匹配，避免短前缀误中
   let best: { group: string; page: string; len: number } | null = null

@@ -10,6 +10,7 @@ import (
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
+	"meridian/server/internal/auth"
 	"meridian/server/internal/reconcile"
 	"meridian/server/internal/store"
 	"meridian/server/internal/validation"
@@ -124,7 +125,7 @@ func (s *Server) createCI(c *gin.Context) {
 		if err := tx.Create(&ci).Error; err != nil {
 			return err
 		}
-		writeAuditLog(tx, ci.ID, "create", source, changes, "接口创建 CI")
+		writeAuditLog(tx, ci.ID, "create", source, currentOperator(c), changes, "接口创建 CI")
 		return nil
 	})
 	if err != nil {
@@ -209,7 +210,7 @@ func (s *Server) patchCI(c *gin.Context) {
 		}
 	}
 	if len(changes) > 0 {
-		writeAuditLog(s.db, ci.ID, "update", source, changes, "接口更新 CI")
+		writeAuditLog(s.db, ci.ID, "update", source, currentOperator(c), changes, "接口更新 CI")
 	}
 	if err := s.db.First(&ci, "id = ?", ci.ID).Error; err != nil {
 		respondError(c, http.StatusInternalServerError, CodeInternal, "重新加载 CI 失败", nil)
@@ -264,16 +265,29 @@ func (s *Server) resolveCI(c *gin.Context, id string) (store.CI, bool) {
 }
 
 // writeAuditLog 写一条 CI 审计记录（失败仅记日志级忽略，不阻断主流程）。
-func writeAuditLog(db *gorm.DB, ciID, action, source string, changes map[string]reconcile.Change, message string) {
+// operator 为操作者用户名；系统通道（采集器/webhook）传入空串时落 system。
+func writeAuditLog(db *gorm.DB, ciID, action, source, operator string, changes map[string]reconcile.Change, message string) {
+	if operator == "" {
+		operator = "system"
+	}
 	jsonChanges := datatypes.JSONMap{}
 	for k, ch := range changes {
 		jsonChanges[k] = map[string]any{"old": ch.Old, "new": ch.New}
 	}
 	_ = db.Create(&store.AuditLog{
-		CIID:    ciID,
-		Action:  action,
-		Source:  source,
-		Changes: jsonChanges,
-		Message: message,
+		CIID:     ciID,
+		Action:   action,
+		Source:   source,
+		Operator: operator,
+		Changes:  jsonChanges,
+		Message:  message,
 	}).Error
+}
+
+// currentOperator 从请求上下文取当前用户名；无会话上下文时返回 system。
+func currentOperator(c *gin.Context) string {
+	if user := auth.CurrentUser(c); user != nil {
+		return user.Username
+	}
+	return "system"
 }

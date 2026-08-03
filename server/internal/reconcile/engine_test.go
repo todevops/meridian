@@ -390,8 +390,9 @@ func useUIDKeys(t *testing.T, db *gorm.DB) store.Model {
 	return model
 }
 
-// TestStableUIDKey 稳定 UID 是同一性判定的第一键：
-// 同一台 VM 改名 + 换 IP 后，凭 instance_uuid 仍识别为同一资产并同步变更。
+// TestStableUIDKey 稳定 UID 是同一性判定的第一键（AC-F032-01）：
+// 同一台 VM 改名 + 换 IP 后，vCenter 记录凭 instance_uuid 仍识别为同一资产并同步变更，
+// 不产生第二条 CI、不入发现池。
 func TestStableUIDKey(t *testing.T) {
 	db, engine, _ := setup(t)
 	model := useUIDKeys(t, db)
@@ -481,7 +482,7 @@ func TestCloudUIDEnrichment(t *testing.T) {
 	}
 }
 
-// TestIPReuseConflict IP 复用保护：
+// TestIPReuseConflict IP 复用保护（AC-F032-02）：
 // 存量 CI（cloud_instance_id=i-1）的 IP 被分配给新实例（i-2）后，
 // 同 IP 但 UID 不符 → 判定冲突入池人工裁决，绝不错误合并。
 func TestIPReuseConflict(t *testing.T) {
@@ -514,7 +515,7 @@ func TestIPReuseConflict(t *testing.T) {
 	}
 }
 
-// TestIdentFallbackPool 主机换 IP 的兜底线索：
+// TestIdentFallbackPool 主机换 IP 的兜底线索（AC-F032-03）：
 // n9e 记录 ident 相同但 IP 不符（无 UID 可用的裸机换 IP 场景）→
 // ident 末位键命中但交叉键不符，入池人工裁决而非静默新建重复 CI。
 func TestIdentFallbackPool(t *testing.T) {
@@ -537,6 +538,79 @@ func TestIdentFallbackPool(t *testing.T) {
 	}
 	if got := countPool(t, db); got != 1 {
 		t.Fatalf("应入池待人工裁决，实际 %d 条", got)
+	}
+}
+
+// TestN9eVsphereUIDBackfill 三源回归（n9e/vSphere 链）：
+// n9e 记录只带 ident+ip，建档的 CI 没有任何 UID——vSphere 首次上报同 IP 记录时
+// 三 UID 键均未命中，主 IP 作兜底锚点合并并补全 instance_uuid（不判冲突）；
+// 之后 VM 在 vCenter 侧改名 + 换 IP，vSphere 记录凭居首的 instance_uuid 命中同一 CI——
+// 同一性判定成立（不新建、不入池），ident/ip 因由更高优先级来源 n9e 维护而跳过覆盖，
+// 待 n9e 周期上报时再由 n9e 权威更新。全程单 CI、零入池。
+func TestN9eVsphereUIDBackfill(t *testing.T) {
+	db, engine, _ := setup(t)
+	model := useUIDKeys(t, db)
+	ctx := context.Background()
+
+	// 1. n9e 建档（仅 ident+ip，无 UID）。
+	if _, err := engine.Evaluate(ctx, hostRecord("vm-web-01", "10.0.1.1", "Rocky Linux 9"), false); err != nil {
+		t.Fatalf("n9e 建档失败: %v", err)
+	}
+
+	// 2. vSphere 首次上报同 IP 记录：主 IP 兜底命中，补全 instance_uuid。
+	vsp1 := hostRecord("vm-web-01", "10.0.1.1", "Rocky Linux 9")
+	vsp1.Source = "vsphere"
+	vsp1.Attributes["instance_uuid"] = "uuid-vm-01"
+	d, err := engine.Evaluate(ctx, vsp1, false)
+	if err != nil {
+		t.Fatalf("vSphere 首次调和失败: %v", err)
+	}
+	if d.Action != ActionUpdate {
+		t.Fatalf("同主 IP 应兜底合并，实际动作 %s（%v）", d.Action, d.Reasons)
+	}
+	var ci store.CI
+	if err := db.First(&ci, "model_id = ?", model.ID).Error; err != nil {
+		t.Fatalf("读取 CI 失败: %v", err)
+	}
+	if ci.Attributes["instance_uuid"] != "uuid-vm-01" {
+		t.Fatalf("instance_uuid 应被补全: %v", ci.Attributes)
+	}
+
+	// 3. vCenter 侧改名 + 换 IP：instance_uuid 居首命中同一 CI（同一性不丢）；
+	// ident/ip 由 n9e（优先级 80）维护，vSphere（70）上报被跳过，不产生第二条 CI。
+	vsp2 := hostRecord("vm-web-01-renamed", "10.0.1.9", "Rocky Linux 9")
+	vsp2.Source = "vsphere"
+	vsp2.Attributes["instance_uuid"] = "uuid-vm-01"
+	d, err = engine.Evaluate(ctx, vsp2, false)
+	if err != nil {
+		t.Fatalf("vSphere 改名调和失败: %v", err)
+	}
+	if d.Action != ActionUpdate || d.MatchedCIID != ci.ID {
+		t.Fatalf("同 instance_uuid 应命中 CI %s 合并，实际动作 %s 命中 %s（%v）", ci.ID, d.Action, d.MatchedCIID, d.Reasons)
+	}
+	ci = store.CI{}
+	if err := db.First(&ci, "model_id = ?", model.ID).Error; err != nil {
+		t.Fatalf("读取 CI 失败: %v", err)
+	}
+	if ci.Attributes["ident"] != "vm-web-01" || ci.Attributes["ip"] != "10.0.1.1" {
+		t.Fatalf("ident/ip 由 n9e 维护，vSphere 不应覆盖: %v", ci.Attributes)
+	}
+
+	// 4. n9e 周期上报（ident+ip 不变，心跳类字段随动）：主 IP 锚定同一 CI。
+	n9eBeat := hostRecord("vm-web-01", "10.0.1.1", "Rocky Linux 9")
+	n9eBeat.Attributes["agent_version"] = "7.0.1"
+	d, err = engine.Evaluate(ctx, n9eBeat, false)
+	if err != nil {
+		t.Fatalf("n9e 周期上报调和失败: %v", err)
+	}
+	if d.Action != ActionUpdate || d.MatchedCIID != ci.ID {
+		t.Fatalf("n9e 周期上报应锚定 CI %s，实际动作 %s 命中 %s（%v）", ci.ID, d.Action, d.MatchedCIID, d.Reasons)
+	}
+	if got := countCIs(t, db, model.ID); got != 1 {
+		t.Fatalf("全程应仅 1 条 CI，实际 %d", got)
+	}
+	if got := countPool(t, db); got != 0 {
+		t.Fatalf("三源链式合并不应入池，实际 %d 条", got)
 	}
 }
 

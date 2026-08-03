@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"meridian/server/internal/auditrules"
 	"meridian/server/internal/auth"
 	"meridian/server/internal/config"
 	"meridian/server/internal/credentials"
@@ -85,17 +86,26 @@ func main() {
 		defer sub.Close()
 	}
 
-	// n9e 消费器：仅当 N9E_API_URL 与 N9E_API_TOKEN 均配置才启动。
+	// n9e 消费器：仅当 N9E_API_URL 与 N9E_API_TOKEN 均配置才启动；
+	// 客户端同时供质量看板反向监控指标与退役联动摘除 target 使用。
+	var n9eClient *n9e.Client
 	if cfg.N9EAPIURL != "" && cfg.N9EAPIToken != "" {
-		consumer := n9e.NewConsumer(n9e.NewClient(cfg.N9EAPIURL, cfg.N9EAPIToken), pipeline, cfg.N9EInterval)
+		n9eClient = n9e.NewClient(cfg.N9EAPIURL, cfg.N9EAPIToken)
+		consumer := n9e.NewConsumer(n9eClient, pipeline, cfg.N9EInterval)
 		go consumer.Run(bgCtx)
 		log.Printf("n9e 消费器已启动: api=%s 间隔=%s", cfg.N9EAPIURL, cfg.N9EInterval)
 	} else {
 		log.Println("N9E_API_URL / N9E_API_TOKEN 未配置，n9e 消费器跳过")
 	}
 
+	// 稽核规则引擎（F-081）：内置 6 条规则幂等种子 + 每日定时执行。
+	if err := auditrules.SeedBuiltin(gdb); err != nil {
+		log.Fatalf("种子内置稽核规则失败: %v", err)
+	}
+	go auditrules.NewEngine(gdb).RunDailyLoop(bgCtx)
+
 	// HTTP 服务。
-	r := httpapi.NewRouter(gdb, pipeline, authSvc, credCipher, sched)
+	r := httpapi.NewRouter(gdb, pipeline, authSvc, credCipher, sched, n9eClient)
 	srv := &http.Server{Addr: cfg.HTTPAddr, Handler: r}
 
 	// 捕获 SIGINT/SIGTERM 实现优雅关闭。

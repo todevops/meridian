@@ -188,6 +188,6 @@ func (s *Server) applyOxidizedAttrs(c *gin.Context, ci store.CI, changes map[str
 		respondError(c, http.StatusInternalServerError, CodeInternal, "更新 CI 备份元数据失败", nil)
 		return
 	}
-	writeAuditLog(s.db, ci.ID, "update", "oxidized", changes, message)
+	writeAuditLog(s.db, ci.ID, "update", "oxidized", "system", changes, message)
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "ci_id": ci.ID, "idempotent": false})
 }

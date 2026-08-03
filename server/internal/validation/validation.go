@@ -31,8 +31,12 @@ func (e FieldErrors) Error() string {
 
 // 允许的属性类型与 CI 状态枚举。
 var (
-	attrTypes  = map[string]bool{"string": true, "number": true, "bool": true, "enum": true, "ip": true, "date": true}
-	ciStatuses = map[string]bool{"discovered": true, "active": true, "retired": true}
+	attrTypes = map[string]bool{"string": true, "number": true, "bool": true, "enum": true, "ip": true, "date": true}
+	// CI 生命周期状态（F-026）：合法流转关系见 internal/lifecycle.Transitions。
+	ciStatuses = map[string]bool{
+		"discovered": true, "purchase": true, "stock": true, "active": true,
+		"maintenance": true, "pending_retire": true, "retired": true,
+	}
 )
 
 // ValidAttrType 报告属性类型是否合法。

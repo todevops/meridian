@@ -143,7 +143,7 @@ func (s *Server) confirmPoolItem(c *gin.Context) {
 			Update("status", "confirmed").Error; err != nil {
 			return err
 		}
-		writeAuditLog(tx, ci.ID, "create", source, changes, fmt.Sprintf("发现池确认建档（池条目 %s）", item.ID))
+		writeAuditLog(tx, ci.ID, "create", source, currentOperator(c), changes, fmt.Sprintf("发现池确认建档（池条目 %s）", item.ID))
 		return nil
 	})
 	if err != nil {

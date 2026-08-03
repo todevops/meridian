@@ -15,6 +15,7 @@ import (
 	"meridian/server/internal/dcim"
 	"meridian/server/internal/discovery"
 	"meridian/server/internal/ipam"
+	"meridian/server/internal/n9e"
 	"meridian/server/internal/scheduler"
 )
 
@@ -36,6 +37,9 @@ type Server struct {
 	dcim       *dcim.Service
 	credCipher *credentials.Cipher
 	scheduler  *scheduler.Scheduler
+	// n9eClient 为 n9e REST 客户端（可空：未配置 N9E_API_URL/TOKEN 时，
+	// 质量看板反向监控指标缺省、退役联动 n9e 动作报告跳过）。
+	n9eClient *n9e.Client
 	// oxidizedToken 为 Oxidized webhook 共享密钥（env OXIDIZED_WEBHOOK_TOKEN，默认 dev-oxidized-token）。
 	oxidizedToken string
 }
@@ -43,7 +47,7 @@ type Server struct {
 // NewRouter 构建完整路由（健康检查 + /api/v1 业务接口）。
 // 除 /healthz、/readyz 与 /api/v1/auth/login 外，所有接口需认证；
 // 业务接口按权限点鉴权（权限点目录见 auth 包 catalog）。
-func NewRouter(db *gorm.DB, pipeline *discovery.Pipeline, authSvc *auth.Service, credCipher *credentials.Cipher, sched *scheduler.Scheduler) *gin.Engine {
+func NewRouter(db *gorm.DB, pipeline *discovery.Pipeline, authSvc *auth.Service, credCipher *credentials.Cipher, sched *scheduler.Scheduler, n9eClient *n9e.Client) *gin.Engine {
 	s := &Server{
 		db:            db,
 		pipeline:      pipeline,
@@ -52,6 +56,7 @@ func NewRouter(db *gorm.DB, pipeline *discovery.Pipeline, authSvc *auth.Service,
 		dcim:          dcim.NewService(db),
 		credCipher:    credCipher,
 		scheduler:     sched,
+		n9eClient:     n9eClient,
 		oxidizedToken: defaultStringEnv("OXIDIZED_WEBHOOK_TOKEN", "dev-oxidized-token"),
 	}
 
@@ -145,6 +150,26 @@ func NewRouter(db *gorm.DB, pipeline *discovery.Pipeline, authSvc *auth.Service,
 		// 告警事件（2B）：黑设备等风险线索的查询与确认。
 		authed.GET("/alerts", s.require("alert:read"), s.listAlerts)
 		authed.POST("/alerts/:alert_id/ack", s.require("alert:write"), s.ackAlert)
+
+		// 数据质量看板（F-080）：五指标汇总与下钻缺失清单。
+		authed.GET("/dashboard/quality", s.require("dashboard:read"), s.getQualityDashboard)
+		authed.GET("/dashboard/quality/drilldown", s.require("dashboard:read"), s.getQualityDrilldown)
+
+		// 稽核规则与整改待办（F-081）。
+		authed.GET("/governance/rules", s.require("governance:read"), s.listAuditRules)
+		authed.POST("/governance/rules", s.require("governance:write"), s.createAuditRule)
+		authed.PATCH("/governance/rules/:id", s.require("governance:write"), s.patchAuditRule)
+		authed.POST("/governance/rules/:id/run", s.require("governance:write"), s.runAuditRule)
+		authed.GET("/governance/todos", s.require("governance:read"), s.listGovernanceTodos)
+		authed.POST("/governance/todos/:id/close", s.require("governance:write"), s.closeGovernanceTodo)
+
+		// 生命周期（F-026）：状态流转、退役会签与联动执行。
+		authed.POST("/cis/:ci_id/lifecycle", s.require("lifecycle:write"), s.transitionCI)
+		authed.GET("/lifecycle/retire-candidates", s.require("governance:read"), s.retireCandidates)
+		authed.POST("/lifecycle/retire", s.require("lifecycle:write"), s.retireCI)
+
+		// 审计日志查询（F-004）。
+		authed.GET("/audit", s.require("audit:read"), s.listAuditLogs)
 
 		authed.GET("/users", s.require("user:manage"), s.listUsers)
 		authed.POST("/users", s.require("user:manage"), s.createUser)

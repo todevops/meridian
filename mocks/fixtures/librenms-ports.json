@@ -12,7 +12,11 @@
       "ifOperStatus": "up",
       "ifAdminStatus": "up",
       "ifAlias": "to-bj-core-sw-02-GE1/0/1",
-      "ifPhysAddress": "04f9c81a0101"
+      "ifPhysAddress": "04f9c81a0101",
+      "lldp": {
+        "remote_device": "bj-core-sw-02",
+        "remote_port": "Gi0/1"
+      }
     },
     {
       "port_id": 102,
@@ -70,7 +74,11 @@
       "ifOperStatus": "up",
       "ifAdminStatus": "up",
       "ifAlias": "to-bj-core-sw-01-GE1/0/1",
-      "ifPhysAddress": "7cf90a2b0201"
+      "ifPhysAddress": "7cf90a2b0201",
+      "lldp": {
+        "remote_device": "bj-core-sw-01",
+        "remote_port": "Gi0/1"
+      }
     },
     {
       "port_id": 202,
@@ -158,7 +166,11 @@
       "ifOperStatus": "up",
       "ifAdminStatus": "up",
       "ifAlias": "downlink-bj-srv-dl380-01",
-      "ifPhysAddress": "58696c0d0402"
+      "ifPhysAddress": "58696c0d0402",
+      "lldp": {
+        "remote_device": "bj-srv-dl380-01",
+        "remote_port": "eth0"
+      }
     }
   ]
 }

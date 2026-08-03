@@ -118,6 +118,28 @@ func (c *Client) UpdateTargetNote(ctx context.Context, targetID int64, note stri
 		map[string]any{"note": note})
 }
 
+// DeleteTargets 摘除监控目标（DELETE /api/n9e/targets，body {"ids":[...]}），
+// 供退役联动（F-026）把退役主机从 n9e 监控中移除。
+func (c *Client) DeleteTargets(ctx context.Context, ids []int64) error {
+	raw, err := json.Marshal(map[string]any{"ids": ids})
+	if err != nil {
+		return fmt.Errorf("序列化请求体失败: %w", err)
+	}
+	body, err := c.do(ctx, http.MethodDelete, "/api/n9e/targets", raw)
+	if err != nil {
+		return err
+	}
+	var shell struct {
+		Err string `json:"err"`
+	}
+	if len(body) > 0 {
+		if err := json.Unmarshal(body, &shell); err == nil && shell.Err != "" {
+			return fmt.Errorf("n9e 返回错误: %s", shell.Err)
+		}
+	}
+	return nil
+}
+
 // AlertCurEvents 拉取指定 ident 的当前告警（GET /api/n9e/alert-cur-events?ident=），
 // 返回 n9e 原始响应体（代理场景原样透传，不解析）。
 func (c *Client) AlertCurEvents(ctx context.Context, ident string) (json.RawMessage, error) {

@@ -1,0 +1,60 @@
+{
+  "bj-core-sw-01": [
+    {
+      "local_port": "Gi0/1",
+      "remote_device": "bj-core-sw-02",
+      "remote_port": "Gi0/1",
+      "protocol": "lldp"
+    }
+  ],
+  "bj-core-sw-02": [
+    {
+      "local_port": "Gi0/1",
+      "remote_device": "bj-core-sw-01",
+      "remote_port": "Gi0/1",
+      "protocol": "lldp"
+    },
+    {
+      "local_port": "Gi0/2",
+      "remote_device": "sh-dist-sw-01",
+      "remote_port": "Gi0/1",
+      "protocol": "lldp"
+    }
+  ],
+  "sh-dist-sw-01": [
+    {
+      "local_port": "Gi0/1",
+      "remote_device": "bj-core-sw-02",
+      "remote_port": "Gi0/2",
+      "protocol": "lldp"
+    },
+    {
+      "local_port": "Gi0/24",
+      "remote_device": "bj-acc-sw-01",
+      "remote_port": "Gi0/1",
+      "protocol": "lldp"
+    }
+  ],
+  "bj-acc-sw-01": [
+    {
+      "local_port": "Gi0/1",
+      "remote_device": "sh-dist-sw-01",
+      "remote_port": "Gi0/24",
+      "protocol": "lldp"
+    },
+    {
+      "local_port": "Gi0/5",
+      "remote_device": "bj-srv-dl380-01",
+      "remote_port": "eth0",
+      "protocol": "lldp"
+    }
+  ],
+  "bj-srv-dl380-01": [
+    {
+      "local_port": "eth0",
+      "remote_device": "bj-acc-sw-01",
+      "remote_port": "Gi0/5",
+      "protocol": "lldp"
+    }
+  ]
+}

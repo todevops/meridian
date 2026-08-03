@@ -113,8 +113,8 @@ func TestMapTarget(t *testing.T) {
 		t.Fatalf("规格字段映射不符: %v", a)
 	}
 	// UpdateAt(1735689600) = 2025-01-01T00:00:00Z。
-	if a["last_seen_at"] != "2025-01-01T00:00:00Z" {
-		t.Fatalf("last_seen_at 映射不符: %v", a["last_seen_at"])
+	if a["last_heartbeat_at"] != "2025-01-01T00:00:00Z" {
+		t.Fatalf("last_heartbeat_at 映射不符: %v", a["last_heartbeat_at"])
 	}
 	if a["biz_group"] != "电商业务组" {
 		t.Fatalf("biz_group 映射不符: %v", a["biz_group"])

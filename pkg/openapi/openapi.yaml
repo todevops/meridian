@@ -31,6 +31,14 @@ tags:
     description: 采集任务（F-033，周期调度与手动触发）
   - name: alerts
     description: 告警事件（2B，黑设备等风险线索的查询与确认）
+  - name: dashboard
+    description: 数据质量看板（F-080，五指标与下钻缺失清单）
+  - name: governance
+    description: 稽核规则与整改待办（F-081）
+  - name: lifecycle
+    description: CI 生命周期（F-026，状态流转/退役会签/退役联动）
+  - name: audit
+    description: 审计日志查询（F-004）
 # 全局认证要求：除 /api/v1/auth/login 与未列入契约的健康检查外，所有接口需携带会话
 security:
   - cookieAuth: []
@@ -1247,6 +1255,312 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+  /api/v1/dashboard/quality:
+    get:
+      tags: [dashboard]
+      summary: 数据质量看板汇总
+      operationId: getQualityDashboard
+      description: |
+        全模型五指标汇总（F-080）：属性完整率（Core=必填属性非空占比）、关联完整率
+        （有任一关系的 CI 占比；host 特化为有业务归属占比）、孤岛 CI 数、数据鲜度
+        （updated_at 超 7 天占比）、监控覆盖率（monitor：CMDB 在用主机超 10 分钟
+        无心跳占比；n9e 已配置时附 no_ci_pct=n9e targets 无 CMDB CI 占比）。
+      responses:
+        '200':
+          description: 质量指标汇总
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QualityReport'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/dashboard/quality/drilldown:
+    get:
+      tags: [dashboard]
+      summary: 质量指标下钻缺失清单
+      operationId: getQualityDrilldown
+      description: 按模型与指标下钻"缺失该指标"的 CI 清单（标准分页）
+      parameters:
+        - name: model_id
+          in: query
+          description: 模型 ID 或编码
+          required: true
+          schema:
+            type: string
+        - name: metric
+          in: query
+          description: 指标编码
+          required: true
+          schema:
+            type: string
+            enum: [completeness, relation_completeness, orphan, stale, no_heartbeat]
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: 缺失 CI 分页清单
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CIListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/governance/rules:
+    get:
+      tags: [governance]
+      summary: 查询稽核规则列表
+      operationId: listAuditRules
+      responses:
+        '200':
+          description: 稽核规则列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditRuleListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [governance]
+      summary: 创建稽核规则
+      operationId: createAuditRule
+      description: 声明式规则 = 模型过滤条件（filter 属性等值）+ 断言表达式 + 待办模板；断言语法见 AuditRule.assertion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuditRuleRequest'
+      responses:
+        '200':
+          description: 创建成功，返回规则
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditRule'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/governance/rules/{rule_id}:
+    patch:
+      tags: [governance]
+      summary: 修改稽核规则
+      operationId: patchAuditRule
+      parameters:
+        - name: rule_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuditRuleRequest'
+      responses:
+        '200':
+          description: 修改成功，返回规则
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditRule'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/governance/rules/{rule_id}/run:
+    post:
+      tags: [governance]
+      summary: 手动执行稽核规则
+      operationId: runAuditRule
+      description: 立即执行一次规则：断言失败的 CI 按 (rule_id, ci_id) 去重生成待办；修复的 CI 待办自动关闭；dry_run 规则只出报告不落库
+      parameters:
+        - name: rule_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 执行报告
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditRuleRunResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/governance/todos:
+    get:
+      tags: [governance]
+      summary: 查询整改待办列表
+      operationId: listGovernanceTodos
+      parameters:
+        - name: status
+          in: query
+          description: 按状态过滤（缺省返回全部）
+          required: false
+          schema:
+            type: string
+            enum: [open, closed]
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: 整改待办分页列表（附规则名，最新在前）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GovernanceTodoListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/v1/governance/todos/{todo_id}/close:
+    post:
+      tags: [governance]
+      summary: 关闭整改待办
+      operationId: closeGovernanceTodo
+      description: 人工关闭待办（幂等）；规则下次执行通过时也会自动关闭
+      parameters:
+        - name: todo_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 关闭成功，返回待办
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GovernanceTodo'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/cis/{ci_id}/lifecycle:
+    post:
+      tags: [lifecycle]
+      summary: CI 生命周期状态流转
+      operationId: transitionCI
+      description: |
+        校验合法流转边（discovered→stock/active；purchase→stock；stock→active；
+        active↔maintenance；active/maintenance→pending_retire；
+        pending_retire→active/retired；retired 终态），流转落审计（action=lifecycle）。
+      parameters:
+        - $ref: '#/components/parameters/CIId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LifecycleTransitionRequest'
+      responses:
+        '200':
+          description: 流转成功，返回 CI
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CI'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/lifecycle/retire-candidates:
+    get:
+      tags: [lifecycle]
+      summary: 退役候选三方会签清单
+      operationId: retireCandidates
+      description: |
+        对全部未退役 host CI 执行三方会签判定：heartbeat_ok=心跳 7 天内仍在更新
+        （last_heartbeat_at 优先，回退 updated_at）；scan_ok=近 3 次 ip_scan
+        原始记录中有存活记录；cloud_ok=存在 cloud_instance_id（云侧实例存在）。
+        三者全部为否时 eligible=true。
+      responses:
+        '200':
+          description: 会签判定清单
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetireCandidateListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/lifecycle/retire:
+    post:
+      tags: [lifecycle]
+      summary: 执行退役联动
+      operationId: retireCI
+      description: |
+        confirm=true 时执行退役联动（F-026）：状态→retired、n9e 摘除 target
+        （按 ident/主 IP 匹配，需 N9E_API_URL/TOKEN）、JumpServer 禁用资产
+        （凭据 type=jumpserver 或 JUMPSERVER_URL/TOKEN）、IPAM 关联 IP 置闲置
+        （idle）、写审计（action=retire）与告警事件。各动作尽力执行、逐动作报告结果。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RetireRequest'
+      responses:
+        '200':
+          description: 退役联动动作结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetireResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/audit:
+    get:
+      tags: [audit]
+      summary: 查询 CI 变更审计日志
+      operationId: listAuditLogs
+      description: 全部写操作（人工与采集器）的字段级变更留痕（F-004），按创建时间倒序分页
+      parameters:
+        - name: ci_id
+          in: query
+          description: 按 CI 过滤
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: operator
+          in: query
+          description: 按操作者用户名过滤（系统写入为 system）
+          required: false
+          schema:
+            type: string
+        - name: source
+          in: query
+          description: 按来源过滤（manual/n9e/lifecycle 等）
+          required: false
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: 审计日志分页列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 components:
   securitySchemes:
     cookieAuth:
@@ -2549,3 +2863,298 @@ components:
           items:
             type: string
           description: 未命中任何规则的主机 ident
+    ModelQuality:
+      type: object
+      description: 单模型质量指标快照（F-080）
+      required: [model_id, code, name, completeness, relation_completeness, orphan_count, stale_pct]
+      properties:
+        model_id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        name:
+          type: string
+        completeness:
+          type: number
+          description: 属性完整率 0-100（Core=必填属性非空单元格占比）
+        relation_completeness:
+          type: number
+          description: 关联完整率 0-100（host 特化为业务归属占比）
+        orphan_count:
+          type: integer
+          description: 孤岛 CI 数（无任何关系）
+        stale_pct:
+          type: number
+          description: 数据鲜度超期占比 0-100（updated_at 超 7 天）
+        no_heartbeat_pct:
+          type: number
+          description: 仅 host：超 10 分钟无心跳占比 0-100
+    MonitorQuality:
+      type: object
+      description: 监控覆盖率双指标（host 域）
+      required: [no_heartbeat_pct]
+      properties:
+        no_heartbeat_pct:
+          type: number
+          description: CMDB 在用主机无心跳占比 0-100
+        no_ci_pct:
+          type: number
+          description: n9e targets 无 CMDB CI 占比 0-100（n9e 未配置时缺省）
+    QualityReport:
+      type: object
+      required: [models, monitor]
+      properties:
+        models:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModelQuality'
+        monitor:
+          $ref: '#/components/schemas/MonitorQuality'
+    AuditRule:
+      type: object
+      description: |
+        稽核规则（F-081）。assertion 为声明式断言表达式，语法：
+        比较（==/!=/>/>=/</<=/contains）、逻辑（and/or/not/括号）、
+        函数（empty(attr)/not_empty(attr)/age_days(attr)/unique(attr)/biz_attributed()）、
+        裸属性名真值判断（非空即真）。filter 为 CI 属性等值过滤（如 {"env":"prod"}）。
+      required: [id, name, model_code, filter, assertion, message, enabled, dry_run]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        model_code:
+          type: string
+          description: 目标模型编码（如 host）
+        filter:
+          type: object
+          description: CI 属性等值过滤条件，空对象表示模型内全部 CI
+        assertion:
+          type: string
+          example: not_empty(cluster_name) and backup_count > 0
+        message:
+          type: string
+          description: 违规时生成待办的标题
+        enabled:
+          type: boolean
+        dry_run:
+          type: boolean
+          description: 演练模式：只出报告不产生/关闭待办
+        last_run_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    AuditRuleRequest:
+      type: object
+      description: 规则创建/修改请求（PATCH 时全字段可选）
+      required: [name, model_code, assertion, message]
+      properties:
+        name:
+          type: string
+        model_code:
+          type: string
+        filter:
+          type: object
+        assertion:
+          type: string
+        message:
+          type: string
+        enabled:
+          type: boolean
+        dry_run:
+          type: boolean
+    AuditRuleListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditRule'
+    AuditRuleViolation:
+      type: object
+      required: [ci_id, title]
+      properties:
+        ci_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+    AuditRuleRunResult:
+      type: object
+      required: [rule_id, rule_name, dry_run, checked, violations, todos_created, todos_closed]
+      properties:
+        rule_id:
+          type: string
+          format: uuid
+        rule_name:
+          type: string
+        dry_run:
+          type: boolean
+        checked:
+          type: integer
+          description: 参与检查的 CI 数
+        violations:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditRuleViolation'
+        todos_created:
+          type: integer
+        todos_closed:
+          type: integer
+    GovernanceTodo:
+      type: object
+      required: [id, rule_id, ci_id, title, status, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        rule_id:
+          type: string
+          format: uuid
+        rule_name:
+          type: string
+          description: 列表接口附带的规则名
+        ci_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        status:
+          type: string
+          enum: [open, closed]
+        created_at:
+          type: string
+          format: date-time
+        closed_at:
+          type: string
+          format: date-time
+    GovernanceTodoListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/GovernanceTodo'
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+    LifecycleTransitionRequest:
+      type: object
+      required: [to]
+      properties:
+        to:
+          type: string
+          description: 目标状态
+          enum: [discovered, purchase, stock, active, maintenance, pending_retire, retired]
+    RetireCandidate:
+      type: object
+      required: [ci, heartbeat_ok, scan_ok, cloud_ok, eligible]
+      properties:
+        ci:
+          $ref: '#/components/schemas/CI'
+        heartbeat_ok:
+          type: boolean
+          description: 心跳 7 天内仍在更新（true 阻断退役）
+        scan_ok:
+          type: boolean
+          description: 近 3 次 ip_scan 有存活记录（true 阻断退役）
+        cloud_ok:
+          type: boolean
+          description: 云侧实例存在（true 阻断退役）
+        eligible:
+          type: boolean
+          description: 三方会签全部通过，可进入退役
+    RetireCandidateListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RetireCandidate'
+    RetireRequest:
+      type: object
+      required: [ci_id, confirm]
+      properties:
+        ci_id:
+          type: string
+          format: uuid
+        confirm:
+          type: boolean
+          description: 必须为 true 才会执行（防误操作）
+    RetireAction:
+      type: object
+      required: [type, ok, detail]
+      properties:
+        type:
+          type: string
+          description: 动作类型
+          enum: [status, n9e_remove_target, jumpserver_disable, ipam_idle, alert_event]
+        ok:
+          type: boolean
+        detail:
+          type: string
+    RetireResponse:
+      type: object
+      required: [ci_id, actions]
+      properties:
+        ci_id:
+          type: string
+          format: uuid
+        actions:
+          type: array
+          items:
+            $ref: '#/components/schemas/RetireAction'
+    AuditLogItem:
+      type: object
+      required: [id, ci_id, action, source, operator, changes, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        ci_id:
+          type: string
+          format: uuid
+        action:
+          type: string
+          description: create/update/conflict/lifecycle/retire
+        source:
+          type: string
+          description: 变更来源（manual/n9e/lifecycle 等）
+        operator:
+          type: string
+          description: 操作者用户名（系统写入为 system）
+        changes:
+          type: object
+          description: "字段变更明细 {\"字段\": {\"old\": ..., \"new\": ...}}"
+        message:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    AuditLogListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditLogItem'
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
