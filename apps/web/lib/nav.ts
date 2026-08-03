@@ -8,6 +8,7 @@ import {
   Building2 as Building2Icon,
   Cable as CableIcon,
   Cloud as CloudIcon,
+  Container as ContainerIcon,
   Database as DatabaseIcon,
   KeyRound as KeyRoundIcon,
   Layers as LayersIcon,
@@ -21,6 +22,7 @@ import {
   ShieldCheck as ShieldCheckIcon,
   Gauge as GaugeIcon,
   UsersRound as UsersRoundIcon,
+  Waypoints as WaypointsIcon,
   type LucideIcon,
 } from "lucide-react"
 
@@ -69,9 +71,15 @@ export const NAV_GROUPS: NavGroupDef[] = [
       { href: "/applications", label: "应用归属", icon: AppWindowIcon },
       { href: "/virtualization", label: "虚拟化", icon: LayersIcon },
       { href: "/cloud", label: "云资源", icon: CloudIcon },
+      { href: "/k8s", label: "容器云", icon: ContainerIcon },
       { href: "/network/devices", label: "网络设备", icon: CableIcon },
       { href: "/dcim", label: "机房与机柜", icon: Building2Icon },
     ],
+  },
+  {
+    key: "infra",
+    label: "基础设施",
+    items: [{ href: "/topology", label: "网络拓扑", icon: WaypointsIcon }],
   },
   {
     key: "network",

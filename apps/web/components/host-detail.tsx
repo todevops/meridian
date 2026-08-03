@@ -12,6 +12,7 @@ import {
 } from "lucide-react"
 
 import { N9EPanel } from "@/components/n9e-panel"
+import { RelationGraph } from "@/components/relation-graph"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@workspace/ui/components/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -308,38 +309,53 @@ export function HostDetail({ id }: { id: string }) {
             {relations.length === 0 ? (
               <p className="text-xs text-muted-foreground">暂无关系</p>
             ) : (
-              <ul className="flex flex-col gap-2">
-                {relations.map((rel, index) => {
-                  const peerName = pickAttr(rel.peer_ci.attributes, PEER_NAME_CODES)
-                  return (
-                    <li
-                      key={`${rel.relation_code}-${rel.peer_ci.id}-${index}`}
-                      className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-xs"
-                    >
-                      <span className="flex items-center gap-2">
-                        <Badge variant="secondary">
-                          {relationNames.get(rel.relation_code) ?? rel.relation_code}
-                        </Badge>
-                        {rel.direction === "outgoing" ? (
-                          <span className="flex items-center gap-1 text-muted-foreground">
-                            <ArrowRightIcon className="size-3.5" /> 出向
+              <div className="flex flex-col gap-3">
+                {/* F-021：一跳局部拓扑，边按关系类型着色带方向，点击对端跳详情 */}
+                <RelationGraph
+                  ci={ci}
+                  relations={relations}
+                  relationNames={relationNames}
+                  hrefForPeer={(rel) => `/hosts/${rel.peer_ci.id}`}
+                />
+                {/* 原关系列表保留为折叠明细 */}
+                <details className="group">
+                  <summary className="cursor-pointer text-xs text-muted-foreground select-none hover:text-foreground">
+                    关系明细列表（点击展开）
+                  </summary>
+                  <ul className="mt-2 flex flex-col gap-2">
+                    {relations.map((rel, index) => {
+                      const peerName = pickAttr(rel.peer_ci.attributes, PEER_NAME_CODES)
+                      return (
+                        <li
+                          key={`${rel.relation_code}-${rel.peer_ci.id}-${index}`}
+                          className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-xs"
+                        >
+                          <span className="flex items-center gap-2">
+                            <Badge variant="secondary">
+                              {relationNames.get(rel.relation_code) ?? rel.relation_code}
+                            </Badge>
+                            {rel.direction === "outgoing" ? (
+                              <span className="flex items-center gap-1 text-muted-foreground">
+                                <ArrowRightIcon className="size-3.5" /> 出向
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1 text-muted-foreground">
+                                <IncomingIcon className="size-3.5" /> 入向
+                              </span>
+                            )}
                           </span>
-                        ) : (
-                          <span className="flex items-center gap-1 text-muted-foreground">
-                            <IncomingIcon className="size-3.5" /> 入向
-                          </span>
-                        )}
-                      </span>
-                      <Link
-                        href={`/hosts/${rel.peer_ci.id}`}
-                        className="min-w-0 truncate font-medium text-primary hover:underline"
-                      >
-                        {peerName === "—" ? rel.peer_ci.id : peerName}
-                      </Link>
-                    </li>
-                  )
-                })}
-              </ul>
+                          <Link
+                            href={`/hosts/${rel.peer_ci.id}`}
+                            className="min-w-0 truncate font-medium text-primary hover:underline"
+                          >
+                            {peerName === "—" ? rel.peer_ci.id : peerName}
+                          </Link>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </details>
+              </div>
             )}
           </CardContent>
         </Card>

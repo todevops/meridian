@@ -1378,3 +1378,67 @@ export function listAuditLogs(
 ): Promise<Paged<AuditLogItem>> {
   return request<Paged<AuditLogItem>>("/v1/audit", { query: { ...params } })
 }
+
+// ---------- 网络拓扑（F-061：LLDP/CDP 邻居链路图 + 主机接入定位） ----------
+
+/** 拓扑节点（网络设备），room 用于按机房分组着色 */
+export interface TopologyNode {
+  id: string
+  name: string
+  model_code: string
+  room?: string
+}
+
+/** 拓扑链路（设备 A 端口 ↔ 设备 B 端口），source 区分 auto（协议证据）/manual（手工） */
+export interface TopologyEdge {
+  a: string
+  b: string
+  a_port?: string
+  b_port?: string
+  source?: string
+}
+
+export interface TopologyGraph {
+  nodes: TopologyNode[]
+  edges: TopologyEdge[]
+}
+
+export function getTopology(): Promise<TopologyGraph> {
+  return request<TopologyGraph>("/v1/topology")
+}
+
+/** 主机接入定位结果（ARP IP→MAC + MAC→端口交叉） */
+export interface HostLocation {
+  ip: string
+  mac?: string
+  switch?: string
+  port?: string
+  protocol?: string
+}
+
+/** 按 IP 定位主机接入的交换机端口；无命中时后端返回 404 */
+export function getHostLocation(ip: string): Promise<HostLocation> {
+  return request<HostLocation>("/v1/topology/host-location", { query: { ip } })
+}
+
+// ---------- K8s Pod 实况（F-024：直查 apiserver，不落库） ----------
+
+export interface K8sPod {
+  name: string
+  namespace: string
+  phase: string
+  node?: string
+  restart_count: number
+  age_seconds: number
+}
+
+export interface ListK8sPodsParams {
+  cluster: string
+  namespace: string
+  /** label selector，如 app=<name> */
+  selector?: string
+}
+
+export function listK8sPods(params: ListK8sPodsParams): Promise<K8sPod[]> {
+  return request<K8sPod[]>("/v1/k8s/pods", { query: { ...params } })
+}

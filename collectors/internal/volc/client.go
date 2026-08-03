@@ -143,3 +143,19 @@ func IsVKE(resourceType string) bool {
 func IsECS(resourceType string) bool {
 	return strings.Contains(strings.ToUpper(resourceType), "ECS")
 }
+
+// IsVPC 判断资源类型是否为私有网络。
+func IsVPC(resourceType string) bool {
+	return strings.Contains(strings.ToUpper(resourceType), "VPC")
+}
+
+// IsRDS 判断资源类型是否为云数据库（RDS_MySQL/PostgreSQL 等）。
+func IsRDS(resourceType string) bool {
+	return strings.Contains(strings.ToUpper(resourceType), "RDS")
+}
+
+// IsCLB 判断资源类型是否为负载均衡（CLB/ALB/NLB）。
+func IsCLB(resourceType string) bool {
+	u := strings.ToUpper(resourceType)
+	return strings.Contains(u, "CLB") || strings.Contains(u, "ALB") || strings.Contains(u, "NLB")
+}

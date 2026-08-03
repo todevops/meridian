@@ -1,0 +1,228 @@
+{
+  "cluster": "volc-prod-k8s",
+  "version": {
+    "major": "1",
+    "minor": "29",
+    "gitVersion": "v1.29.3",
+    "gitCommit": "6813625b7cd706b5bc4987a1ca5e7e1b0d9a0001",
+    "gitTreeState": "clean",
+    "buildDate": "2025-01-15T00:00:00Z",
+    "goVersion": "go1.21.6",
+    "compiler": "gc",
+    "platform": "linux/amd64"
+  },
+  "resource_versions": {
+    "namespaces": "1101",
+    "nodes": "1102",
+    "pods": "1103",
+    "services": "1104",
+    "persistentvolumes": "1105",
+    "deployments": "1106",
+    "statefulsets": "1107",
+    "daemonsets": "1108",
+    "ingresses": "1109"
+  },
+  "namespaces": [
+    {
+      "metadata": { "name": "mall-front", "uid": "8f14e45f-ea7d-4b1c-9c2d-000000000101", "labels": { "env": "prod", "app": "mall-front" }, "creationTimestamp": "2026-05-10T08:00:00Z" },
+      "status": { "phase": "Active" }
+    },
+    {
+      "metadata": { "name": "mall-order", "uid": "8f14e45f-ea7d-4b1c-9c2d-000000000102", "labels": { "env": "prod", "app": "mall-order" }, "creationTimestamp": "2026-05-10T08:00:00Z" },
+      "status": { "phase": "Active" }
+    },
+    {
+      "metadata": { "name": "infra", "uid": "8f14e45f-ea7d-4b1c-9c2d-000000000103", "labels": { "env": "prod", "team": "sre" }, "creationTimestamp": "2026-05-10T08:00:00Z" },
+      "status": { "phase": "Active" }
+    }
+  ],
+  "nodes": [
+    {
+      "metadata": { "name": "k8s-node-01", "uid": "8f14e45f-ea7d-4b1c-9c2d-000000000201", "labels": { "kubernetes.io/hostname": "k8s-node-01", "node-role.kubernetes.io/worker": "" }, "creationTimestamp": "2026-05-10T08:05:00Z" },
+      "spec": { "podCIDR": "172.20.0.0/24" },
+      "status": {
+        "addresses": [
+          { "type": "InternalIP", "address": "10.30.1.11" },
+          { "type": "Hostname", "address": "k8s-node-01" }
+        ],
+        "capacity": { "cpu": "8", "memory": "32768Mi" },
+        "conditions": [ { "type": "Ready", "status": "True", "reason": "KubeletReady" } ],
+        "nodeInfo": { "kubeletVersion": "v1.29.3", "osImage": "Ubuntu 22.04.4 LTS", "containerRuntimeVersion": "containerd://1.7.13", "kernelVersion": "5.15.0-105-generic", "operatingSystem": "linux", "architecture": "amd64" }
+      }
+    },
+    {
+      "metadata": { "name": "k8s-node-02", "uid": "8f14e45f-ea7d-4b1c-9c2d-000000000202", "labels": { "kubernetes.io/hostname": "k8s-node-02", "node-role.kubernetes.io/worker": "" }, "creationTimestamp": "2026-05-10T08:06:00Z" },
+      "spec": { "podCIDR": "172.20.1.0/24" },
+      "status": {
+        "addresses": [
+          { "type": "InternalIP", "address": "10.30.1.12" },
+          { "type": "Hostname", "address": "k8s-node-02" }
+        ],
+        "capacity": { "cpu": "8", "memory": "32768Mi" },
+        "conditions": [ { "type": "Ready", "status": "True", "reason": "KubeletReady" } ],
+        "nodeInfo": { "kubeletVersion": "v1.29.3", "osImage": "Ubuntu 22.04.4 LTS", "containerRuntimeVersion": "containerd://1.7.13", "kernelVersion": "5.15.0-105-generic", "operatingSystem": "linux", "architecture": "amd64" }
+      }
+    },
+    {
+      "metadata": { "name": "k8s-node-03", "uid": "8f14e45f-ea7d-4b1c-9c2d-000000000203", "labels": { "kubernetes.io/hostname": "k8s-node-03", "node-role.kubernetes.io/worker": "" }, "creationTimestamp": "2026-05-10T08:07:00Z" },
+      "spec": { "podCIDR": "172.20.2.0/24" },
+      "status": {
+        "addresses": [
+          { "type": "InternalIP", "address": "10.30.2.21" },
+          { "type": "Hostname", "address": "k8s-node-03" }
+        ],
+        "capacity": { "cpu": "16", "memory": "65536Mi" },
+        "conditions": [ { "type": "Ready", "status": "True", "reason": "KubeletReady" } ],
+        "nodeInfo": { "kubeletVersion": "v1.29.3", "osImage": "Ubuntu 22.04.4 LTS", "containerRuntimeVersion": "containerd://1.7.13", "kernelVersion": "5.15.0-105-generic", "operatingSystem": "linux", "architecture": "amd64" }
+      }
+    }
+  ],
+  "deployments": [
+    {
+      "metadata": { "name": "mall-front-web", "namespace": "mall-front", "uid": "8f14e45f-ea7d-4b1c-9c2d-000000000301", "labels": { "app": "mall-front" }, "creationTimestamp": "2026-06-01T03:00:00Z" },
+      "spec": {
+        "replicas": 2,
+        "selector": { "matchLabels": { "app": "mall-front" } },
+        "template": {
+          "metadata": { "labels": { "app": "mall-front" } },
+          "spec": { "containers": [ { "name": "web", "image": "nginx:1.27", "ports": [ { "name": "http", "containerPort": 80, "protocol": "TCP" } ] } ] }
+        }
+      },
+      "status": { "replicas": 2, "readyReplicas": 1, "availableReplicas": 1, "updatedReplicas": 2 }
+    }
+  ],
+  "statefulsets": [
+    {
+      "metadata": { "name": "order-db", "namespace": "mall-order", "uid": "8f14e45f-ea7d-4b1c-9c2d-000000000302", "labels": { "app": "order-db" }, "creationTimestamp": "2026-06-01T03:10:00Z" },
+      "spec": {
+        "replicas": 1,
+        "serviceName": "order-db",
+        "selector": { "matchLabels": { "app": "order-db" } },
+        "template": {
+          "metadata": { "labels": { "app": "order-db" } },
+          "spec": { "containers": [ { "name": "postgres", "image": "postgres:16.3", "ports": [ { "name": "pg", "containerPort": 5432, "protocol": "TCP" } ] } ] }
+        }
+      },
+      "status": { "replicas": 1, "readyReplicas": 1 }
+    }
+  ],
+  "daemonsets": [
+    {
+      "metadata": { "name": "node-agent", "namespace": "infra", "uid": "8f14e45f-ea7d-4b1c-9c2d-000000000303", "labels": { "app": "node-agent" }, "creationTimestamp": "2026-06-01T03:20:00Z" },
+      "spec": {
+        "selector": { "matchLabels": { "app": "node-agent" } },
+        "template": {
+          "metadata": { "labels": { "app": "node-agent" } },
+          "spec": { "containers": [ { "name": "agent", "image": "fluent/fluent-bit:3.1" } ] }
+        }
+      },
+      "status": { "desiredNumberScheduled": 3, "numberReady": 3, "currentNumberScheduled": 3 }
+    }
+  ],
+  "services": [
+    {
+      "metadata": { "name": "mall-front-svc", "namespace": "mall-front", "uid": "8f14e45f-ea7d-4b1c-9c2d-000000000401", "labels": { "app": "mall-front" }, "creationTimestamp": "2026-06-01T03:05:00Z" },
+      "spec": {
+        "type": "ClusterIP",
+        "clusterIP": "10.96.18.20",
+        "selector": { "app": "mall-front" },
+        "ports": [ { "name": "http", "port": 80, "targetPort": 80, "protocol": "TCP" } ]
+      }
+    }
+  ],
+  "ingresses": [
+    {
+      "metadata": { "name": "mall-front-ing", "namespace": "mall-front", "uid": "8f14e45f-ea7d-4b1c-9c2d-000000000402", "labels": { "app": "mall-front" }, "creationTimestamp": "2026-06-01T03:06:00Z" },
+      "spec": {
+        "ingressClassName": "nginx",
+        "rules": [
+          {
+            "host": "mall.example.com",
+            "http": {
+              "paths": [
+                { "path": "/", "pathType": "Prefix", "backend": { "service": { "name": "mall-front-svc", "port": { "number": 80 } } } }
+              ]
+            }
+          }
+        ]
+      },
+      "status": { "loadBalancer": { "ingress": [ { "ip": "10.30.0.10" } ] } }
+    }
+  ],
+  "persistentvolumes": [
+    {
+      "metadata": { "name": "pv-order-data", "uid": "8f14e45f-ea7d-4b1c-9c2d-000000000501", "labels": { "app": "order-db" }, "creationTimestamp": "2026-06-01T03:11:00Z" },
+      "spec": {
+        "capacity": { "storage": "100Gi" },
+        "accessModes": [ "ReadWriteOnce" ],
+        "persistentVolumeReclaimPolicy": "Retain",
+        "storageClassName": "local-path",
+        "hostPath": { "path": "/data/pv-order-data" },
+        "claimRef": { "namespace": "mall-order", "name": "data-order-db-0" }
+      },
+      "status": { "phase": "Bound" }
+    }
+  ],
+  "pods": [
+    {
+      "metadata": { "name": "mall-front-web-7d9c5f8b6-abcde", "namespace": "mall-front", "uid": "8f14e45f-ea7d-4b1c-9c2d-000000000601", "labels": { "app": "mall-front", "pod-template-hash": "7d9c5f8b6" }, "ownerReferences": [ { "apiVersion": "apps/v1", "kind": "ReplicaSet", "name": "mall-front-web-7d9c5f8b6" } ], "creationTimestamp": "2026-07-20T02:10:00Z" },
+      "spec": { "nodeName": "k8s-node-01", "containers": [ { "name": "web", "image": "nginx:1.27" } ] },
+      "status": {
+        "phase": "Running",
+        "podIP": "172.20.0.15",
+        "startTime": "2026-07-20T02:10:00Z",
+        "containerStatuses": [ { "name": "web", "ready": true, "restartCount": 0, "state": { "running": { "startedAt": "2026-07-20T02:10:05Z" } } } ]
+      }
+    },
+    {
+      "metadata": { "name": "mall-front-web-7d9c5f8b6-fghij", "namespace": "mall-front", "uid": "8f14e45f-ea7d-4b1c-9c2d-000000000602", "labels": { "app": "mall-front", "pod-template-hash": "7d9c5f8b6" }, "ownerReferences": [ { "apiVersion": "apps/v1", "kind": "ReplicaSet", "name": "mall-front-web-7d9c5f8b6" } ], "creationTimestamp": "2026-07-20T02:10:00Z" },
+      "spec": { "nodeName": "k8s-node-02", "containers": [ { "name": "web", "image": "nginx:1.27" } ] },
+      "status": {
+        "phase": "Running",
+        "podIP": "172.20.1.16",
+        "startTime": "2026-07-20T02:10:00Z",
+        "containerStatuses": [ { "name": "web", "ready": false, "restartCount": 37, "state": { "waiting": { "reason": "CrashLoopBackOff", "message": "back-off 5m0s restarting failed container=web" } }, "lastState": { "terminated": { "exitCode": 1, "reason": "Error" } } } ]
+      }
+    },
+    {
+      "metadata": { "name": "order-db-0", "namespace": "mall-order", "uid": "8f14e45f-ea7d-4b1c-9c2d-000000000603", "labels": { "app": "order-db" }, "ownerReferences": [ { "apiVersion": "apps/v1", "kind": "StatefulSet", "name": "order-db" } ], "creationTimestamp": "2026-07-20T02:15:00Z" },
+      "spec": { "nodeName": "k8s-node-03", "containers": [ { "name": "postgres", "image": "postgres:16.3" } ] },
+      "status": {
+        "phase": "Running",
+        "podIP": "172.20.2.20",
+        "startTime": "2026-07-20T02:15:00Z",
+        "containerStatuses": [ { "name": "postgres", "ready": true, "restartCount": 0, "state": { "running": { "startedAt": "2026-07-20T02:15:08Z" } } } ]
+      }
+    },
+    {
+      "metadata": { "name": "node-agent-x1y2z", "namespace": "infra", "uid": "8f14e45f-ea7d-4b1c-9c2d-000000000604", "labels": { "app": "node-agent", "pod-template-generation": "1" }, "ownerReferences": [ { "apiVersion": "apps/v1", "kind": "DaemonSet", "name": "node-agent" } ], "creationTimestamp": "2026-07-20T02:20:00Z" },
+      "spec": { "nodeName": "k8s-node-01", "containers": [ { "name": "agent", "image": "fluent/fluent-bit:3.1" } ] },
+      "status": {
+        "phase": "Running",
+        "podIP": "172.20.0.21",
+        "startTime": "2026-07-20T02:20:00Z",
+        "containerStatuses": [ { "name": "agent", "ready": true, "restartCount": 0, "state": { "running": { "startedAt": "2026-07-20T02:20:04Z" } } } ]
+      }
+    },
+    {
+      "metadata": { "name": "node-agent-a3b4c", "namespace": "infra", "uid": "8f14e45f-ea7d-4b1c-9c2d-000000000605", "labels": { "app": "node-agent", "pod-template-generation": "1" }, "ownerReferences": [ { "apiVersion": "apps/v1", "kind": "DaemonSet", "name": "node-agent" } ], "creationTimestamp": "2026-07-20T02:20:00Z" },
+      "spec": { "nodeName": "k8s-node-02", "containers": [ { "name": "agent", "image": "fluent/fluent-bit:3.1" } ] },
+      "status": {
+        "phase": "Running",
+        "podIP": "172.20.1.22",
+        "startTime": "2026-07-20T02:20:00Z",
+        "containerStatuses": [ { "name": "agent", "ready": true, "restartCount": 0, "state": { "running": { "startedAt": "2026-07-20T02:20:04Z" } } } ]
+      }
+    },
+    {
+      "metadata": { "name": "node-agent-d5e6f", "namespace": "infra", "uid": "8f14e45f-ea7d-4b1c-9c2d-000000000606", "labels": { "app": "node-agent", "pod-template-generation": "1" }, "ownerReferences": [ { "apiVersion": "apps/v1", "kind": "DaemonSet", "name": "node-agent" } ], "creationTimestamp": "2026-07-20T02:20:00Z" },
+      "spec": { "nodeName": "k8s-node-03", "containers": [ { "name": "agent", "image": "fluent/fluent-bit:3.1" } ] },
+      "status": {
+        "phase": "Running",
+        "podIP": "172.20.2.23",
+        "startTime": "2026-07-20T02:20:00Z",
+        "containerStatuses": [ { "name": "agent", "ready": true, "restartCount": 0, "state": { "running": { "startedAt": "2026-07-20T02:20:04Z" } } } ]
+      }
+    }
+  ]
+}

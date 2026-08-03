@@ -1,0 +1,26 @@
+{
+  "Items": {
+    "DBInstance": [
+      {
+        "DBInstanceId": "rm-bp1mysql01abcd",
+        "DBInstanceDescription": "ali-mall-order-mysql",
+        "Engine": "MySQL",
+        "EngineVersion": "8.0",
+        "DBInstanceClass": "mysql.n2.medium.1",
+        "RegionId": "cn-beijing",
+        "ZoneId": "cn-beijing-a",
+        "DBInstanceStatus": "Running"
+      },
+      {
+        "DBInstanceId": "rm-bp1pg02efgh",
+        "DBInstanceDescription": "ali-report-pg",
+        "Engine": "PostgreSQL",
+        "EngineVersion": "15.0",
+        "DBInstanceClass": "pg.n2.small.1",
+        "RegionId": "cn-beijing",
+        "ZoneId": "cn-beijing-b",
+        "DBInstanceStatus": "Running"
+      }
+    ]
+  }
+}

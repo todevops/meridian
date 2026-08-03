@@ -1,7 +1,7 @@
 # collectors — Meridian 自研采集器
 
-六款数据源采集器，拉取源端清单映射为标准发现记录（契约 `DiscoveryRecord`，见 `pkg/openapi/openapi.yaml`），
-批量 `POST {MERIDIAN_API_URL}/api/v1/discovery-records`。vsphere 采集器依赖 govmomi，其余为纯 Go 标准库实现。
+七款数据源采集器，拉取源端清单映射为标准发现记录（契约 `DiscoveryRecord`，见 `pkg/openapi/openapi.yaml`），
+批量 `POST {MERIDIAN_API_URL}/api/v1/discovery-records`。vsphere 采集器依赖 govmomi，k8s 采集器依赖 client-go rest（仅用 RESTClient list，无 informer），其余为纯 Go 标准库实现。
 
 ## 构建与运行
 
@@ -22,9 +22,17 @@ go test ./...                              # 单测（httptest 夹具 + 内嵌 n
 | aliyun | 阿里云 ECS | `GET {ALIYUN_API_URL}/?Action=DescribeInstances&PageSize=500&PageNumber=1` | host | host_type=cloud, cloud_provider=aliyun, cloud_instance_id, ip（首个私网）, ident, spec, zone, status, tags |
 | volc | 火山 CloudControl | `POST {VOLC_API_URL}/?Action=ListResources&Version=2021-01-01` | host（ECS 类）/ k8s_workload（VKE 占位，注记 cluster） | 同上，cloud_provider=volc；未建模资源类型跳过 |
 | dbdiscover | TSDB（Prometheus 协议） | `GET {TSDB_API_URL}/api/v1/label/instance/values?match[]=<指标>` | db_instance | type（mysql/redis/kafka/elasticsearch）, ip, port, source=tsdb_label |
-| librenms | LibreNMS | `GET {LIBRENMS_API_URL}/api/v0/devices`（X-Auth-Token） | network_device | sysname, ip, vendor, model（缺省回退 hardware）, serial, source=librenms |
+| librenms | LibreNMS | `GET {LIBRENMS_API_URL}/api/v0/devices` + `GET .../devices/{hostname}/links`（X-Auth-Token） | network_device / network_link | 设备：sysname, ip, vendor, model（缺省回退 hardware）, serial, source=librenms；链路：local_device/local_port/remote_device/remote_port/protocol（缺省 lldp）, source=lldp，links 端点 404 容错跳过 |
 | ipscan | nmap | `NMAP_FROM_FILE` 文件 或 `exec nmap -sn -oX - {NMAP_SCAN_TARGET}` | host | ip, mac, black_device_risk（仅未登记存活）, last_seen_alive（取扫描时间） |
 | vsphere | vCenter（govmomi） | `{VSPHERE_URL}/sdk` | esxi_cluster / esxi_host / virtual_machine | 见下 |
+| k8s | K8s apiserver（client-go rest） | `/version` + list nodes/namespaces/services/deployments/statefulsets/daemonsets/ingresses（Bearer Token 或 kubeconfig） | k8s_cluster / host / k8s_namespace / k8s_workload / k8s_service | 见下 |
+
+### k8s 说明
+
+- k8s_cluster：name=集群名（`K8S_CLUSTER_NAME`）、version（/version gitVersion）、node_count。
+- Node → host 记录（host_type=k8s_node、ident=node 名、ip=InternalIP 缺省回退 ExternalIP、labels 白名单 env/environment/biz/business/owner、ready 取 Ready 条件）；关电/NotReady 节点容错建档（ready=false）不中断采集，与既有主机 CI 经调和键合并。
+- k8s_namespace：cluster/name；k8s_workload：cluster/namespace/kind（Deployment/StatefulSet/DaemonSet）/name/replicas（DaemonSet 取 desiredNumberScheduled，spec.replicas 缺省按 K8s 语义为 1）/image（Pod 模板首容器）/labels 白名单 app/env/environment；k8s_service：Service 记 selector、Ingress 记 host（规则域名逗号拼接）。
+- 周期任务型：单次运行即一轮全量 list 上报，增量/对账由调度周期保证；Pod 一律不落库（详情页实况直查 apiserver）。
 
 ### vsphere 说明
 
@@ -61,6 +69,11 @@ dry-run 模式下只打印意图不变更，CMDB 不可达降级为告警。
 | `VSPHERE_URL` | `:19007` | vCenter SDK 地址（简写自动补 `https://` 与 `/sdk`；vcsim 为 http 时写完整 URL） |
 | `VSPHERE_USERNAME` / `VSPHERE_PASSWORD` | 空 | vCenter 账密（vcsim 默认 user/pass） |
 | `VSPHERE_INSECURE` | `true` | 跳过 TLS 证书校验 |
+| `K8S_API_URL` | `:19009` | K8s apiserver 地址（简写自动补 `http://localhost`） |
+| `K8S_TOKEN` | `dev-k8s-token` | K8s Bearer Token |
+| `K8S_CLUSTER_NAME` | `volc-prod-k8s` | 集群名（k8s_cluster 记录与其余记录的 cluster 属性） |
+| `K8S_INSECURE` | `true` | 跳过 TLS 证书校验 |
+| `K8S_KUBECONFIG` | 空 | kubeconfig 文件路径（设置后优先于 url+token） |
 
 ## 响应形状兼容说明
 

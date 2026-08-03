@@ -156,6 +156,7 @@ func (s *Server) ensureDeployedOn(appCIID, hostCIID string) error {
 		RelationCode: "deployed_on",
 		SrcCIID:      appCIID,
 		DstCIID:      hostCIID,
+		Source:       store.RelationSourceAuto,
 	}).Error
 }
 

@@ -1,0 +1,24 @@
+{
+  "LoadBalancers": {
+    "LoadBalancer": [
+      {
+        "LoadBalancerId": "lb-bp1mallfront01",
+        "LoadBalancerName": "ali-mall-front-slb",
+        "Address": "10.30.0.100",
+        "LoadBalancerSpec": "slb.s2.small",
+        "AddressType": "intranet",
+        "RegionId": "cn-beijing",
+        "LoadBalancerStatus": "active"
+      },
+      {
+        "LoadBalancerId": "lb-bp1orderapi02",
+        "LoadBalancerName": "ali-order-api-slb",
+        "Address": "10.30.0.101",
+        "LoadBalancerSpec": "slb.s2.small",
+        "AddressType": "intranet",
+        "RegionId": "cn-beijing",
+        "LoadBalancerStatus": "active"
+      }
+    ]
+  }
+}

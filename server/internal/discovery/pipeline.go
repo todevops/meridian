@@ -16,6 +16,7 @@ import (
 	"meridian/server/internal/linker"
 	"meridian/server/internal/reconcile"
 	"meridian/server/internal/store"
+	"meridian/server/internal/topology"
 )
 
 // RecordError 描述一条被拒绝的记录。
@@ -38,11 +39,16 @@ type Pipeline struct {
 }
 
 // NewPipeline 创建摄入管道。
-// 同时把自动关联器（2B，internal/linker）挂为调和引擎后置钩子：
-// CI 建档/更新成功后异步按内置规则幂等 upsert 关系，失败仅记日志。
+// 同时挂载：
+//   - 自动关联器（2B，internal/linker）：CI 建档/更新成功后异步按内置规则幂等 upsert 关系；
+//   - network_link 内建调和（3B，internal/topology）：链路记录无模型定义，
+//     按四元组幂等并自动维护 connected_to 关系。
+//
+// 失败均仅记日志，不阻断调和主流程。
 func NewPipeline(db *gorm.DB) *Pipeline {
 	engine := reconcile.NewEngine(db)
 	engine.AddPostHook(linker.New(db).Handle)
+	engine.RegisterBuiltin("network_link", topology.New(db).HandleLinkRecord)
 	return &Pipeline{db: db, engine: engine}
 }
 

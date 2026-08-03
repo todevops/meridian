@@ -35,6 +35,61 @@ func MapResource(r Resource, now time.Time) (rec record.Record, ok bool) {
 			OccurredAt: now,
 		}, true
 	}
+	if IsVPC(r.ResourceType) {
+		return record.Record{
+			Source:         Source,
+			Collector:      CollectorName,
+			ModelCandidate: "cloud_vpc",
+			Attributes: map[string]any{
+				"cloud_provider": "volc",
+				"vpc_id":         r.ResourceID,
+				"name":           record.StrField(cfg, "VpcName", "VPCName", "Name", "ResourceName"),
+				"cidr":           record.StrField(cfg, "CidrBlock", "CIDR", "Cidr"),
+				"region":         record.StrField(cfg, "Region", "RegionId"),
+				"status":         record.StrField(cfg, "Status", "State"),
+				"tags":           record.FormatTags(r.Tags),
+			},
+			OccurredAt: now,
+		}, true
+	}
+	if IsRDS(r.ResourceType) {
+		return record.Record{
+			Source:         Source,
+			Collector:      CollectorName,
+			ModelCandidate: "cloud_rds",
+			Attributes: map[string]any{
+				"cloud_provider": "volc",
+				"db_instance_id": r.ResourceID,
+				"name":           record.StrField(cfg, "InstanceName", "DBInstanceName", "Name"),
+				"engine":         record.StrField(cfg, "DBEngine", "Engine"),
+				"engine_version": record.StrField(cfg, "DBEngineVersion", "EngineVersion"),
+				"spec":           record.StrField(cfg, "InstanceType", "Spec", "NodeSpec"),
+				"region":         record.StrField(cfg, "Region", "RegionId"),
+				"zone":           record.StrField(cfg, "ZoneId", "Zone"),
+				"status":         record.StrField(cfg, "InstanceStatus", "Status", "State"),
+				"tags":           record.FormatTags(r.Tags),
+			},
+			OccurredAt: now,
+		}, true
+	}
+	if IsCLB(r.ResourceType) {
+		return record.Record{
+			Source:         Source,
+			Collector:      CollectorName,
+			ModelCandidate: "cloud_slb",
+			Attributes: map[string]any{
+				"cloud_provider": "volc",
+				"slb_id":         r.ResourceID,
+				"name":           record.StrField(cfg, "LoadBalancerName", "Name"),
+				"vip":            record.StrField(cfg, "EipAddress", "Address", "Vip", "EniAddress"),
+				"slb_type":       record.StrField(cfg, "Type", "LoadBalancerType", "Spec"),
+				"region":         record.StrField(cfg, "Region", "RegionId"),
+				"status":         record.StrField(cfg, "Status", "State"),
+				"tags":           record.FormatTags(r.Tags),
+			},
+			OccurredAt: now,
+		}, true
+	}
 	if !IsECS(r.ResourceType) {
 		return record.Record{}, false
 	}

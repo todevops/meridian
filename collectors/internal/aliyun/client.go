@@ -19,7 +19,7 @@ const (
 	// Source 是发现来源系统标识。
 	Source = "aliyun"
 	// CollectorName 是采集器标识。
-	CollectorName = "aliyun-ecs-collector"
+	CollectorName = "aliyun-cloud-collector"
 )
 
 // Instance 对应一台 ECS 实例（字段名与阿里云 API 一致）。
@@ -196,4 +196,102 @@ func parseInstances(raw json.RawMessage) ([]Instance, error) {
 		return nil, err
 	}
 	return nest.Instance, nil
+}
+
+// VPC 对应一个私有网络（字段名与阿里云 API 一致）。
+type VPC struct {
+	VpcID     string `json:"VpcId"`
+	VpcName   string `json:"VpcName"`
+	CidrBlock string `json:"CidrBlock"`
+	RegionID  string `json:"RegionId"`
+	Status    string `json:"Status"`
+}
+
+// RDSInstance 对应一个云数据库实例。
+type RDSInstance struct {
+	DBInstanceID  string `json:"DBInstanceId"`
+	Description   string `json:"DBInstanceDescription"`
+	Engine        string `json:"Engine"`
+	EngineVersion string `json:"EngineVersion"`
+	Class         string `json:"DBInstanceClass"`
+	RegionID      string `json:"RegionId"`
+	ZoneID        string `json:"ZoneId"`
+	Status        string `json:"DBInstanceStatus"`
+}
+
+// LoadBalancer 对应一个负载均衡实例。
+type LoadBalancer struct {
+	LoadBalancerID   string `json:"LoadBalancerId"`
+	LoadBalancerName string `json:"LoadBalancerName"`
+	Address          string `json:"Address"`
+	Spec             string `json:"LoadBalancerSpec"`
+	RegionID         string `json:"RegionId"`
+	Status           string `json:"LoadBalancerStatus"`
+}
+
+// list 通用拉取：按 Action 调阿里云 RPC 风格接口，解包 wrapperKey.wrapperItem 数组。
+func (c *Client) list(ctx context.Context, action, wrapperKey, wrapperItem string, out any) error {
+	url := c.baseURL + "/?Action=" + action + "&PageSize=500&PageNumber=1"
+	var raw json.RawMessage
+	if err := record.DoJSON(ctx, c.http, http.MethodGet, url, nil, nil, &raw); err != nil {
+		return fmt.Errorf("调用 %s 失败: %w", action, err)
+	}
+	trim := bytes.TrimSpace(raw)
+	if len(trim) == 0 {
+		return nil
+	}
+	if trim[0] == '[' { // mock 简化形状：顶层数组
+		return json.Unmarshal(trim, out)
+	}
+	var wrap map[string]json.RawMessage
+	if err := json.Unmarshal(trim, &wrap); err != nil {
+		return err
+	}
+	inner, ok := wrap[wrapperKey]
+	if !ok {
+		return nil
+	}
+	trim = bytes.TrimSpace(inner)
+	if len(trim) == 0 || string(trim) == "null" {
+		return nil
+	}
+	if trim[0] == '[' {
+		return json.Unmarshal(trim, out)
+	}
+	var itemWrap map[string]json.RawMessage
+	if err := json.Unmarshal(trim, &itemWrap); err != nil {
+		return err
+	}
+	items, ok := itemWrap[wrapperItem]
+	if !ok {
+		return nil
+	}
+	return json.Unmarshal(items, out)
+}
+
+// ListVPCs 拉取 VPC 清单。
+func (c *Client) ListVPCs(ctx context.Context) ([]VPC, error) {
+	var out []VPC
+	if err := c.list(ctx, "DescribeVpcs", "Vpcs", "Vpc", &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ListRDSInstances 拉取 RDS 实例清单。
+func (c *Client) ListRDSInstances(ctx context.Context) ([]RDSInstance, error) {
+	var out []RDSInstance
+	if err := c.list(ctx, "DescribeDBInstances", "Items", "DBInstance", &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ListLoadBalancers 拉取 SLB 实例清单。
+func (c *Client) ListLoadBalancers(ctx context.Context) ([]LoadBalancer, error) {
+	var out []LoadBalancer
+	if err := c.list(ctx, "DescribeLoadBalancers", "LoadBalancers", "LoadBalancer", &out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }

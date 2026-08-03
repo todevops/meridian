@@ -1,0 +1,16 @@
+{
+  "code": "k8s_service",
+  "name": "K8s 服务暴露",
+  "reconcile_keys": ["cluster", "namespace", "kind", "name"],
+  "attributes": [
+    { "code": "cluster", "name": "集群", "type": "string", "required": true, "source": "apiserver" },
+    { "code": "namespace", "name": "命名空间", "type": "string", "required": true, "source": "apiserver" },
+    { "code": "kind", "name": "类型", "type": "enum", "enum_values": ["service", "ingress"], "required": true, "source": "apiserver" },
+    { "code": "name", "name": "名称", "type": "string", "required": true, "source": "apiserver" },
+    { "code": "selector", "name": "选择器（service 专属，k=v 逗号分隔）", "type": "string", "source": "apiserver" },
+    { "code": "host", "name": "域名（ingress 专属）", "type": "string", "source": "apiserver" }
+  ],
+  "relations": [
+    { "code": "exposed_to", "name": "暴露到工作负载", "target_model": "k8s_workload", "cardinality": "many_to_many", "direction": "outgoing" }
+  ]
+}

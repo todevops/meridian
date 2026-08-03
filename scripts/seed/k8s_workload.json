@@ -1,6 +1,7 @@
 {
   "code": "k8s_workload",
   "name": "K8s 工作负载",
+  "reconcile_keys": ["cluster", "namespace", "kind", "name"],
   "attributes": [
     { "code": "cluster", "name": "集群", "type": "string", "required": true, "source": "apiserver" },
     { "code": "namespace", "name": "命名空间", "type": "string", "required": true, "source": "apiserver" },

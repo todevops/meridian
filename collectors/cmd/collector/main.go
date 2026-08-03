@@ -18,6 +18,11 @@
 //	TSDB_API_URL        TSDB mock（默认 :19004）
 //	LIBRENMS_API_URL    LibreNMS mock（默认 :19003）
 //	LIBRENMS_API_TOKEN  LibreNMS X-Auth-Token（无默认，必填）
+//	K8S_API_URL         K8s apiserver（默认 :19009）
+//	K8S_TOKEN           K8s Bearer Token（默认 dev-k8s-token）
+//	K8S_CLUSTER_NAME    集群名（默认 volc-prod-k8s）
+//	K8S_INSECURE        跳过 TLS 证书校验（默认 true）
+//	K8S_KUBECONFIG      kubeconfig 文件路径（设置后优先于 url+token）
 //	NMAP_FROM_FILE      nmap -oX 结果文件（设置后 ipscan 不再现扫）
 //	NMAP_SCAN_TARGET    ipscan 现扫网段（如 192.168.1.0/24）
 //	VSPHERE_URL         vCenter SDK（默认 :19007，简写自动补 https:// 与 /sdk）
@@ -43,6 +48,7 @@ import (
 	"collectors/internal/aliyun"
 	"collectors/internal/dbdiscover"
 	"collectors/internal/ipscan"
+	"collectors/internal/k8s"
 	"collectors/internal/librenms"
 	"collectors/internal/record"
 	"collectors/internal/runner"
@@ -51,11 +57,11 @@ import (
 )
 
 // allCollectors 是 -collector=all 时的运行顺序。
-var allCollectors = []string{"aliyun", "volc", "dbdiscover", "librenms", "ipscan", "vsphere"}
+var allCollectors = []string{"aliyun", "volc", "dbdiscover", "librenms", "ipscan", "vsphere", "k8s"}
 
 func main() {
 	var (
-		collectorFlag = flag.String("collector", "all", "采集器：aliyun|volc|dbdiscover|librenms|ipscan|vsphere|all（支持逗号分隔多选）")
+		collectorFlag = flag.String("collector", "all", "采集器：aliyun|volc|dbdiscover|librenms|ipscan|vsphere|k8s|all（支持逗号分隔多选）")
 		dryRun        = flag.Bool("dry-run", false, "只打印发现记录，不上报 CMDB、不变更模型")
 	)
 	flag.Parse()
@@ -125,7 +131,20 @@ func build(name, cmdbAPI, authToken string, dryRun bool) (runner.Collector, erro
 		}
 		return vsphere.New(record.Getenv("VSPHERE_URL", ":19007"),
 			record.Getenv("VSPHERE_USERNAME", ""), record.Getenv("VSPHERE_PASSWORD", ""), insecure, log.Printf)
+	case "k8s":
+		insecure := true // 默认跳过证书校验（对接 fake apiserver/自签名集群）
+		if v := strings.TrimSpace(os.Getenv("K8S_INSECURE")); v != "" {
+			b, err := strconv.ParseBool(v)
+			if err != nil {
+				return nil, fmt.Errorf("K8S_INSECURE 取值非法 %q: %w", v, err)
+			}
+			insecure = b
+		}
+		return k8s.New(record.Getenv("K8S_API_URL", ":19009"),
+			record.Getenv("K8S_TOKEN", "dev-k8s-token"),
+			record.Getenv("K8S_CLUSTER_NAME", "volc-prod-k8s"),
+			record.Getenv("K8S_KUBECONFIG", ""), insecure)
 	default:
-		return nil, fmt.Errorf("未知采集器 %q（可选 aliyun|volc|dbdiscover|librenms|ipscan|vsphere|all）", name)
+		return nil, fmt.Errorf("未知采集器 %q（可选 aliyun|volc|dbdiscover|librenms|ipscan|vsphere|k8s|all）", name)
 	}
 }

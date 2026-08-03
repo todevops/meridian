@@ -8,19 +8,49 @@ import (
 )
 
 // newAliyun 构建阿里云 mock（:19005）：
-// 任意方法、任意路径均返回 ECS 实例数组 fixture（官方 DescribeInstances 字段风格）。
+// 按 Action 查询参数路由到各产品 fixture（官方 RPC 风格）：
+// DescribeInstances → ECS，DescribeVpcs → VPC，DescribeDBInstances → RDS，
+// DescribeLoadBalancers → SLB；缺省（无 Action）返回 ECS fixture 保持兼容。
 func newAliyun() (http.Handler, error) {
-	raw, err := readFixture("aliyun-ecs.json")
+	fixtures := map[string]string{
+		"DescribeVpcs":          "aliyun-vpcs.json",
+		"DescribeDBInstances":   "aliyun-rds.json",
+		"DescribeLoadBalancers": "aliyun-slb.json",
+	}
+	payloads := map[string][]byte{}
+	for action, name := range fixtures {
+		raw, err := readFixture(name)
+		if err != nil {
+			return nil, fmt.Errorf("读取 %s 失败: %w", name, err)
+		}
+		if !json.Valid(raw) {
+			return nil, fmt.Errorf("%s 不是合法 JSON", name)
+		}
+		payloads[action] = raw
+	}
+	ecs, err := readFixture("aliyun-ecs.json")
 	if err != nil {
 		return nil, fmt.Errorf("读取 aliyun-ecs.json 失败: %w", err)
 	}
-	if !json.Valid(raw) {
+	if !json.Valid(ecs) {
 		return nil, fmt.Errorf("aliyun-ecs.json 不是合法 JSON")
 	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		writeRawJSON(w, http.StatusOK, raw)
+		action := r.URL.Query().Get("Action")
+		if action == "" || action == "DescribeInstances" {
+			writeRawJSON(w, http.StatusOK, ecs)
+			return
+		}
+		if raw, ok := payloads[action]; ok {
+			writeRawJSON(w, http.StatusOK, raw)
+			return
+		}
+		writeJSON(w, http.StatusBadRequest, map[string]any{
+			"Code":    "InvalidAction",
+			"Message": fmt.Sprintf("不支持的 Action: %q（mock 仅实现 DescribeInstances/Vpcs/DBInstances/LoadBalancers）", action),
+		})
 	})
 	return mux, nil
 }

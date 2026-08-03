@@ -21,7 +21,10 @@ const mockDevices = `{
 func TestCollectMapping(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/v0/devices" {
-			t.Errorf("路径不符: %s", r.URL.Path)
+			// links 邻居端点：本夹具不提供，按 404 容错跳过处理。
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte(`{"status":"error","message":"设备不存在或无邻居数据"}`))
+			return
 		}
 		if tok := r.Header.Get("X-Auth-Token"); tok != "test-token" {
 			t.Errorf("X-Auth-Token 不符: %q", tok)
@@ -107,5 +110,102 @@ func TestCollectSkipsGarbageDevice(t *testing.T) {
 	}
 	if len(recs) != 1 || recs[0].Attributes["name"] != "ok-1" {
 		t.Fatalf("无 ip 且无 sysname 的设备应跳过: %+v", recs)
+	}
+}
+
+// mockDevicesWithLinks 是含 links 邻居端点测试的设备夹具。
+const mockDevicesWithLinks = `{
+  "status": "ok",
+  "devices": [
+    {"hostname": "bj-core-sw-01", "sysName": "bj-core-sw-01.dc1", "ip": "10.70.0.2"},
+    {"hostname": "ghost-sw-99", "ip": "10.70.0.99"}
+  ]
+}`
+
+// mockLinks 是 bj-core-sw-01 的邻居表夹具（一条正常 + 一条缺 protocol + 一条垃圾数据）。
+const mockLinks = `{
+  "status": "ok",
+  "links": [
+    {"local_port": "Gi0/1", "remote_device": "bj-core-sw-02", "remote_port": "Gi0/1", "protocol": "lldp"},
+    {"local_port": "Gi0/2", "remote_device": "sh-dist-sw-01", "remote_port": "Gi0/1"},
+    {"local_port": "Gi0/9", "remote_device": "", "remote_port": "Gi0/9"}
+  ]
+}`
+
+// newLinksServer 起含 links 端点的 LibreNMS 夹具：ghost-sw-99 返回 404（容错跳过用例）。
+func newLinksServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if tok := r.Header.Get("X-Auth-Token"); tok != "test-token" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		switch r.URL.Path {
+		case "/api/v0/devices":
+			w.Write([]byte(mockDevicesWithLinks))
+		case "/api/v0/devices/bj-core-sw-01/links":
+			w.Write([]byte(mockLinks))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte(`{"status":"error","message":"设备不存在或无邻居数据"}`))
+		}
+	}))
+}
+
+func TestCollectLinksMapping(t *testing.T) {
+	srv := newLinksServer(t)
+	defer srv.Close()
+
+	recs, err := New(srv.URL, "test-token").Collect(context.Background())
+	if err != nil {
+		t.Fatalf("Collect 失败: %v", err)
+	}
+	// 2 条设备 + 2 条链路（垃圾邻居跳过；ghost-sw-99 的 links 404 容错跳过）。
+	devices, links := 0, 0
+	var linkRecs []map[string]any
+	for _, r := range recs {
+		switch r.ModelCandidate {
+		case "network_device":
+			devices++
+		case "network_link":
+			links++
+			linkRecs = append(linkRecs, r.Attributes)
+		}
+	}
+	if devices != 2 || links != 2 {
+		t.Fatalf("应产出 2 设备 + 2 链路: %d/%d（记录: %+v）", devices, links, recs)
+	}
+
+	l := linkRecs[0]
+	if l["local_device"] != "bj-core-sw-01" || l["local_port"] != "Gi0/1" {
+		t.Errorf("本端映射不符: %+v", l)
+	}
+	if l["remote_device"] != "bj-core-sw-02" || l["remote_port"] != "Gi0/1" {
+		t.Errorf("对端映射不符: %+v", l)
+	}
+	if l["protocol"] != "lldp" || l["source"] != "lldp" {
+		t.Errorf("protocol/source 不符: %+v", l)
+	}
+
+	// 第二条缺 protocol，应回退 lldp。
+	l2 := linkRecs[1]
+	if l2["protocol"] != "lldp" || l2["remote_device"] != "sh-dist-sw-01" {
+		t.Errorf("protocol 缺省回退不符: %+v", l2)
+	}
+}
+
+func TestCollectLinksServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v0/devices" {
+			w.Write([]byte(mockDevicesWithLinks))
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	// links 端点非 404 错误不容忍，整体报错（防止邻居数据静默缺失）。
+	if _, err := New(srv.URL, "test-token").Collect(context.Background()); err == nil {
+		t.Fatal("links 500 应返回错误")
 	}
 }

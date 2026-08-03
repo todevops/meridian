@@ -90,15 +90,27 @@ func PriorityOf(source string) int {
 // 钩子异步执行（独立 goroutine），失败仅记日志，不影响调和主流程。
 type PostHook func(ctx context.Context, ciID, action string) error
 
+// BuiltinHandler 处理内建候选模型（无模型定义、由引擎内建调和的发现记录，
+// 如 network_link 链路记录——不产生 CI，而是维护网络设备间的 connected_to 关系）。
+// dryRun 语义与 Evaluate 一致：只计算判定不落库。
+type BuiltinHandler func(ctx context.Context, rec Record, dryRun bool) (Decision, error)
+
 // Engine 是调和引擎。
 type Engine struct {
-	db    *gorm.DB
-	hooks []PostHook
+	db       *gorm.DB
+	hooks    []PostHook
+	builtins map[string]BuiltinHandler
 }
 
 // NewEngine 创建调和引擎。
 func NewEngine(db *gorm.DB) *Engine {
-	return &Engine{db: db}
+	return &Engine{db: db, builtins: map[string]BuiltinHandler{}}
+}
+
+// RegisterBuiltin 为无模型定义的候选模型注册内建调和处理器（启动期一次性注册，
+// 之后并发只读）。处理器返回 pool/conflict 判定时由引擎统一写发现池。
+func (e *Engine) RegisterBuiltin(modelCandidate string, h BuiltinHandler) {
+	e.builtins[modelCandidate] = h
 }
 
 // AddPostHook 注册 CI 建档/更新成功后的异步后置钩子（可注册多个，按序触发）。
@@ -137,6 +149,17 @@ func (e *Engine) Evaluate(ctx context.Context, rec Record, dryRun bool) (Decisio
 	var model store.Model
 	if err := e.db.WithContext(ctx).Where("code = ?", rec.ModelCandidate).First(&model).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// 无模型定义的内建候选模型（如 network_link）：委托内建处理器。
+			if h, ok := e.builtins[rec.ModelCandidate]; ok {
+				d, herr := h(ctx, rec, dryRun)
+				if herr != nil {
+					return Decision{}, herr
+				}
+				if d.Action == ActionPool || d.Action == ActionConflict {
+					return d, e.commitPool(ctx, rec, nil, d, dryRun)
+				}
+				return d, nil
+			}
 			d := Decision{
 				Action:  ActionPool,
 				Reasons: []string{fmt.Sprintf("候选模型 %q 不存在，记录转入发现池", rec.ModelCandidate)},

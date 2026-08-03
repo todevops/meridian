@@ -1,0 +1,10 @@
+{
+  "code": "k8s_cluster",
+  "name": "K8s 集群",
+  "reconcile_keys": ["name"],
+  "attributes": [
+    { "code": "name", "name": "集群名", "type": "string", "required": true, "unique": true, "source": "apiserver" },
+    { "code": "version", "name": "集群版本", "type": "string", "source": "apiserver" },
+    { "code": "node_count", "name": "节点数", "type": "number", "source": "apiserver" }
+  ]
+}

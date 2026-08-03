@@ -49,6 +49,49 @@
         { "Key": "env", "Value": "prod" },
         { "Key": "app", "Value": "platform" }
       ]
+    },
+    {
+      "ResourceType": "VPC",
+      "ResourceId": "vpc-2ze9f1a3b5",
+      "Configuration": {
+        "VpcName": "volc-prod-vpc",
+        "CidrBlock": "10.30.0.0/16",
+        "Status": "Available",
+        "Description": "生产主 VPC"
+      },
+      "Tags": [
+        { "Key": "env", "Value": "prod" }
+      ]
+    },
+    {
+      "ResourceType": "RDS_MySQL",
+      "ResourceId": "rm-volcorder01xyz",
+      "Configuration": {
+        "InstanceName": "volc-order-mysql",
+        "DBEngine": "MySQL",
+        "DBEngineVersion": "8.0",
+        "InstanceType": "rds.mysql.d1.n.2c4g",
+        "ZoneId": "cn-beijing-a",
+        "InstanceStatus": "Running"
+      },
+      "Tags": [
+        { "Key": "env", "Value": "prod" },
+        { "Key": "app", "Value": "mall-order" }
+      ]
+    },
+    {
+      "ResourceType": "CLB",
+      "ResourceId": "clb-volcmall01ab",
+      "Configuration": {
+        "LoadBalancerName": "volc-mall-front-clb",
+        "EipAddress": "10.30.0.200",
+        "Type": "application",
+        "Status": "Active"
+      },
+      "Tags": [
+        { "Key": "env", "Value": "prod" },
+        { "Key": "app", "Value": "mall-front" }
+      ]
     }
   ]
 }

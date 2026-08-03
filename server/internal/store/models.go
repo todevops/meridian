@@ -61,16 +61,27 @@ type CI struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+// 关系建档来源（link_source）。
+const (
+	// RelationSourceManual 为人工界面/API 建联——自动关联永不覆盖或删除。
+	RelationSourceManual = "manual"
+	// RelationSourceAuto 为自动关联（拓扑 link 记录、linker 内置规则、归属引擎）建联。
+	RelationSourceAuto = "auto"
+)
+
 // CIRelation 是 CI 之间的关系实例。
 // (relation_code, src_ci_id, dst_ci_id) 有数据库级唯一约束——人工建联与自动关联器
 // 都按此三元组幂等去重，重复触发不会产生重复关系。
 type CIRelation struct {
-	ID           string    `gorm:"primaryKey;size:36" json:"id"`
-	RelationCode string    `gorm:"size:64;not null;index;uniqueIndex:idx_ci_rel_unique" json:"relation_code"`
-	SrcCIID      string    `gorm:"size:36;not null;index;uniqueIndex:idx_ci_rel_unique" json:"src_ci_id"`
-	DstCIID      string    `gorm:"size:36;not null;index;uniqueIndex:idx_ci_rel_unique" json:"dst_ci_id"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID           string `gorm:"primaryKey;size:36" json:"id"`
+	RelationCode string `gorm:"size:64;not null;index;uniqueIndex:idx_ci_rel_unique" json:"relation_code"`
+	SrcCIID      string `gorm:"size:36;not null;index;uniqueIndex:idx_ci_rel_unique" json:"src_ci_id"`
+	DstCIID      string `gorm:"size:36;not null;index;uniqueIndex:idx_ci_rel_unique" json:"dst_ci_id"`
+	// Source 为建档来源（link_source）：manual（人工，默认）/auto（自动关联）；
+	// 存量行迁移后取默认 manual——保守视为人工数据，自动逻辑不得触碰。
+	Source    string    `gorm:"size:16;not null;default:manual" json:"source"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // 告警事件级别。

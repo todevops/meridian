@@ -1,6 +1,6 @@
 "use client"
 
-// 通用 CI 详情抽屉：属性（按模型定义标注中文名）+ 关系列表；
+// 通用 CI 详情抽屉：属性（按模型定义标注中文名）+ 关系一跳拓扑图（F-021，原列表折叠保留）；
 // 供网络设备、数据库实例等台账页复用，extra 插槽用于追加集成占位卡（如 Oxidized）
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
@@ -11,6 +11,7 @@ import {
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import { RelationGraph } from "@/components/relation-graph"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Drawer,
@@ -170,49 +171,65 @@ export function CIDetailDrawer({
               ) : relations.length === 0 ? (
                 <p className="text-xs text-muted-foreground">暂无关系</p>
               ) : (
-                <ul className="flex flex-col gap-2">
-                  {relations.map((rel, index) => {
-                    const peerName = pickAttr(
-                      rel.peer_ci.attributes,
-                      CI_NAME_CODES,
-                    )
-                    const href = hrefForPeer(rel)
-                    return (
-                      <li
-                        key={`${rel.relation_code}-${rel.peer_ci.id}-${index}`}
-                        className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-xs"
-                      >
-                        <span className="flex items-center gap-2">
-                          <Badge variant="secondary">
-                            {relationNames.get(rel.relation_code) ??
-                              rel.relation_code}
-                          </Badge>
-                          {rel.direction === "outgoing" ? (
-                            <span className="flex items-center gap-1 text-muted-foreground">
-                              <OutgoingIcon className="size-3.5" /> 出向
-                            </span>
-                          ) : (
-                            <span className="flex items-center gap-1 text-muted-foreground">
-                              <IncomingIcon className="size-3.5" /> 入向
-                            </span>
-                          )}
-                        </span>
-                        {href ? (
-                          <Link
-                            href={href}
-                            className="min-w-0 truncate font-medium text-primary hover:underline"
+                <div className="flex flex-col gap-3">
+                  {/* F-021：一跳局部拓扑，边按关系类型着色带方向，点击对端跳详情 */}
+                  <RelationGraph
+                    ci={ci}
+                    relations={relations}
+                    relationNames={relationNames}
+                    hrefForPeer={hrefForPeer}
+                    heightClass="h-64"
+                  />
+                  {/* 原关系列表保留为折叠明细 */}
+                  <details className="group">
+                    <summary className="cursor-pointer text-xs text-muted-foreground select-none hover:text-foreground">
+                      关系明细列表（点击展开）
+                    </summary>
+                    <ul className="mt-2 flex flex-col gap-2">
+                      {relations.map((rel, index) => {
+                        const peerName = pickAttr(
+                          rel.peer_ci.attributes,
+                          CI_NAME_CODES,
+                        )
+                        const href = hrefForPeer(rel)
+                        return (
+                          <li
+                            key={`${rel.relation_code}-${rel.peer_ci.id}-${index}`}
+                            className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-xs"
                           >
-                            {peerName === "—" ? rel.peer_ci.id : peerName}
-                          </Link>
-                        ) : (
-                          <span className="min-w-0 truncate">
-                            {peerName === "—" ? rel.peer_ci.id : peerName}
-                          </span>
-                        )}
-                      </li>
-                    )
-                  })}
-                </ul>
+                            <span className="flex items-center gap-2">
+                              <Badge variant="secondary">
+                                {relationNames.get(rel.relation_code) ??
+                                  rel.relation_code}
+                              </Badge>
+                              {rel.direction === "outgoing" ? (
+                                <span className="flex items-center gap-1 text-muted-foreground">
+                                  <OutgoingIcon className="size-3.5" /> 出向
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-1 text-muted-foreground">
+                                  <IncomingIcon className="size-3.5" /> 入向
+                                </span>
+                              )}
+                            </span>
+                            {href ? (
+                              <Link
+                                href={href}
+                                className="min-w-0 truncate font-medium text-primary hover:underline"
+                              >
+                                {peerName === "—" ? rel.peer_ci.id : peerName}
+                              </Link>
+                            ) : (
+                              <span className="min-w-0 truncate">
+                                {peerName === "—" ? rel.peer_ci.id : peerName}
+                              </span>
+                            )}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </details>
+                </div>
               )}
             </section>
 

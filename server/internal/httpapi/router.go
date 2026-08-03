@@ -26,6 +26,8 @@ const (
 	CodeNotFound         = "NOT_FOUND"
 	CodeConflict         = "CONFLICT"
 	CodeInternal         = "INTERNAL"
+	// CodeUpstream 为上游系统（K8s apiserver 等代理目标）调用失败。
+	CodeUpstream = "UPSTREAM_ERROR"
 )
 
 // Server 聚合 HTTP 层依赖。
@@ -138,6 +140,13 @@ func NewRouter(db *gorm.DB, pipeline *discovery.Pipeline, authSvc *auth.Service,
 		authed.POST("/dcim/racks/:ci_id/unmount", s.require("dcim:write"), s.unmountRackUnit)
 
 		authed.GET("/integrations/oxidized/devices", s.require("ci:read"), s.listOxidizedDevices)
+
+		// 网络拓扑（F-061）：链路图与主机接入定位。
+		authed.GET("/topology", s.require("ci:read"), s.getTopology)
+		authed.GET("/topology/host-location", s.require("ci:read"), s.getHostLocation)
+
+		// K8s 集成（F-024）：Pod 实况直查 apiserver 代理（不落库）。
+		authed.GET("/k8s/pods", s.require("ci:read"), s.handleK8SPods)
 
 		// n9e 集成：上行回写（F-070）与嵌入代理（F-063）。
 		authed.POST("/integrations/n9e/writeback", s.require("ci:write"), s.handleN9EWriteback)

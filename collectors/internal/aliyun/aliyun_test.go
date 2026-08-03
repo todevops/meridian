@@ -51,8 +51,10 @@ const mockECSOfficial = `{
 func newFixtureServer(t *testing.T, body string) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// 采集器会依次拉取 ECS/VPC/RDS/SLB；非 ECS 产品返回空清单。
 		if got := r.URL.Query().Get("Action"); got != "DescribeInstances" {
-			t.Errorf("请求 Action 不符: %q", got)
+			w.Write([]byte(`[]`))
+			return
 		}
 		w.Write([]byte(body))
 	}))
@@ -71,7 +73,7 @@ func TestCollectMockArrayShape(t *testing.T) {
 	}
 
 	r := recs[0]
-	if r.Source != "aliyun" || r.Collector != "aliyun-ecs-collector" {
+	if r.Source != "aliyun" || r.Collector != "aliyun-cloud-collector" {
 		t.Errorf("source/collector 不符: %s/%s", r.Source, r.Collector)
 	}
 	if r.ModelCandidate != "host" {
@@ -155,5 +157,61 @@ func TestCollectSkipsInstanceWithoutID(t *testing.T) {
 	}
 	if len(recs) != 0 {
 		t.Fatalf("无 InstanceId 的实例应被跳过: %d", len(recs))
+	}
+}
+
+// 按 Action 路由的多产品 fixture 服务器（ECS/VPC/RDS/SLB）。
+func newMultiProductServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Query().Get("Action") {
+		case "DescribeInstances":
+			w.Write([]byte(`[]`))
+		case "DescribeVpcs":
+			w.Write([]byte(`{"Vpcs":{"Vpc":[{"VpcId":"vpc-001","VpcName":"prod-vpc","CidrBlock":"10.30.0.0/16","RegionId":"cn-beijing","Status":"Available"}]}}`))
+		case "DescribeDBInstances":
+			w.Write([]byte(`{"Items":{"DBInstance":[{"DBInstanceId":"rm-001","DBInstanceDescription":"order-mysql","Engine":"MySQL","EngineVersion":"8.0","DBInstanceClass":"mysql.n2.medium.1","RegionId":"cn-beijing","ZoneId":"cn-beijing-a","DBInstanceStatus":"Running"}]}}`))
+		case "DescribeLoadBalancers":
+			w.Write([]byte(`{"LoadBalancers":{"LoadBalancer":[{"LoadBalancerId":"lb-001","LoadBalancerName":"front-slb","Address":"10.30.0.100","LoadBalancerSpec":"slb.s2.small","RegionId":"cn-beijing","LoadBalancerStatus":"active"}]}}`))
+		default:
+			t.Errorf("未知 Action: %q", r.URL.Query().Get("Action"))
+		}
+	}))
+}
+
+func TestCollectCloudAssets(t *testing.T) {
+	srv := newMultiProductServer(t)
+	defer srv.Close()
+
+	recs, err := New(srv.URL).Collect(context.Background())
+	if err != nil {
+		t.Fatalf("Collect 失败: %v", err)
+	}
+	if len(recs) != 3 {
+		t.Fatalf("应产出 3 条记录（VPC+RDS+SLB）: %d", len(recs))
+	}
+
+	vpc := recs[0]
+	if vpc.ModelCandidate != "cloud_vpc" {
+		t.Errorf("VPC 应映射为 cloud_vpc: %s", vpc.ModelCandidate)
+	}
+	if a := vpc.Attributes; a["vpc_id"] != "vpc-001" || a["cidr"] != "10.30.0.0/16" || a["cloud_provider"] != "aliyun" {
+		t.Errorf("VPC 字段映射不符: %+v", a)
+	}
+
+	rds := recs[1]
+	if rds.ModelCandidate != "cloud_rds" {
+		t.Errorf("RDS 应映射为 cloud_rds: %s", rds.ModelCandidate)
+	}
+	if a := rds.Attributes; a["db_instance_id"] != "rm-001" || a["engine"] != "MySQL" || a["engine_version"] != "8.0" {
+		t.Errorf("RDS 字段映射不符: %+v", a)
+	}
+
+	slb := recs[2]
+	if slb.ModelCandidate != "cloud_slb" {
+		t.Errorf("SLB 应映射为 cloud_slb: %s", slb.ModelCandidate)
+	}
+	if a := slb.Attributes; a["slb_id"] != "lb-001" || a["vip"] != "10.30.0.100" {
+		t.Errorf("SLB 字段映射不符: %+v", a)
 	}
 }

@@ -1,6 +1,7 @@
 {
   "code": "k8s_namespace",
   "name": "K8s 命名空间",
+  "reconcile_keys": ["cluster", "name"],
   "attributes": [
     { "code": "cluster", "name": "集群", "type": "string", "required": true, "source": "apiserver" },
     { "code": "name", "name": "名称", "type": "string", "required": true, "source": "apiserver" }

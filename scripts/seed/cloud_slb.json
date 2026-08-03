@@ -1,0 +1,15 @@
+{
+  "code": "cloud_slb",
+  "name": "云负载均衡",
+  "reconcile_keys": ["slb_id"],
+  "attributes": [
+    { "code": "slb_id", "name": "实例 ID（调和键）", "type": "string", "required": true, "unique": true, "source": "cloud" },
+    { "code": "name", "name": "实例名称", "type": "string", "source": "cloud" },
+    { "code": "vip", "name": "服务地址", "type": "ip", "source": "cloud" },
+    { "code": "slb_type", "name": "类型", "type": "string", "source": "cloud" },
+    { "code": "region", "name": "地域", "type": "string", "source": "cloud" },
+    { "code": "cloud_provider", "name": "云厂商", "type": "enum", "enum_values": ["aliyun", "volc"], "required": true, "source": "cloud" },
+    { "code": "status", "name": "状态", "type": "string", "source": "cloud" },
+    { "code": "tags", "name": "标签（逗号分隔）", "type": "string", "source": "cloud" }
+  ]
+}

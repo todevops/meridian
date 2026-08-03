@@ -3,11 +3,13 @@ package httpapi
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
+	"meridian/server/internal/linker"
 	"meridian/server/internal/store"
 )
 
@@ -22,7 +24,11 @@ func relationView(rel store.CIRelation, currentCIID string, peer store.CI) gin.H
 	if rel.DstCIID == currentCIID && rel.SrcCIID != currentCIID {
 		direction = "incoming"
 	}
-	return gin.H{"relation_code": rel.RelationCode, "direction": direction, "peer_ci": peer}
+	source := rel.Source
+	if source == "" {
+		source = store.RelationSourceManual
+	}
+	return gin.H{"relation_code": rel.RelationCode, "direction": direction, "peer_ci": peer, "source": source}
 }
 
 // createCIRelation 处理 POST /api/v1/cis/{ci_id}/relations。
@@ -108,6 +114,13 @@ func (s *Server) createCIRelation(c *gin.Context) {
 	if err != nil {
 		respondError(c, http.StatusInternalServerError, CodeInternal, "创建关系失败: "+err.Error(), nil)
 		return
+	}
+	// K8s 整挂继承（F-024）：命名空间挂载应用后，名下工作负载自动获得归属。
+	// 传播失败仅记日志，不影响建联结果（关联器会在下次触发时补齐）。
+	if def.Code == "mounted_to" && model.Code == "k8s_namespace" {
+		if err := linker.New(s.db).PropagateNamespaceMount(c.Request.Context(), ci.ID); err != nil {
+			log.Printf("命名空间 %s 归属传播失败: %v", ci.ID, err)
+		}
 	}
 	c.JSON(http.StatusOK, relationView(store.CIRelation{RelationCode: def.Code, SrcCIID: srcID, DstCIID: dstID}, ci.ID, peer))
 }

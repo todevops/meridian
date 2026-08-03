@@ -1,6 +1,6 @@
 # Meridian Mock 平台（mocks）
 
-二三期并行开发的官方接口 mock 平台：单二进制 `mockd` 并行启动 9 个 mock 系统，
+二三期并行开发的官方接口 mock 平台：单二进制 `mockd` 并行启动 10 个 mock 系统，
 数据全部来自 `fixtures/*.json`（内嵌进二进制，任意目录可运行）；
 vcsim 为 govmomi/simulator 进程内 vCenter 模拟器（不依赖 fixture）。
 
@@ -16,10 +16,15 @@ vcsim 为 govmomi/simulator 进程内 vCenter 模拟器（不依赖 fixture）�
 | :19006 | 火山引擎 CloudControl | 无 | `POST /?Action=ListResources&Version=2021-01-01` |
 | :19007 | vcsim（vCenter 模拟器） | 任意凭据均可登录，约定 `user:pass` | `POST /sdk`（SOAP）、`GET /sdk/vimServiceVersions.xml`、`GET /about` |
 | :19008 | Oxidized | 无（只读端点） | `GET /nodes`、`GET /node/fetch/{name}`；启动时默认执行一次性上报流程（见下） |
+| :19009 | fake K8s apiserver | `Authorization: Bearer <非空>`，否则 401 | discovery：`GET /api`、`/apis`、`/api/v1`、`/apis/apps/v1`、`/apis/networking.k8s.io/v1`、`/version`；list：`/api/v1/{namespaces,nodes,pods,services,persistentvolumes}`（pods/services 支持 `/namespaces/{ns}/` 前缀与 `?namespace=`、`?labelSelector=`）、`/apis/apps/v1/{deployments,statefulsets,daemonsets}`（含 namespaced 前缀）、`/apis/networking.k8s.io/v1/ingresses`；全部 list 支持 `?resourceVersion=` 增量语义 |
 | :19010 | JumpServer | `Authorization: Token <非空>`，否则 401 | `GET/POST /api/v1/assets/assets/`、`GET/PATCH /api/v1/assets/assets/{id}/`、`POST /api/v1/assets/assets/{id}/disable/`、`GET /api/v1/assets/nodes/`（内存态，写后 GET 可读回） |
 
 每个端口均可用环境变量覆盖（如 `MOCK_N9E_ADDR=:29001`），对应关系见
 `internal/mocksys/mocksys.go` 的 `Load`。
+
+K8s 采集器（collectors）默认按 `K8S_API_URL=http://127.0.0.1:19009`、
+`K8S_TOKEN=dev-k8s-token`、`K8S_CLUSTER_NAME=volc-prod-k8s` 接入本 mock
+（token 只需非空，鉴权不校验具体值）。
 
 ## 构建与启动
 
@@ -30,7 +35,7 @@ go run ./cmd/mockd          # 前台运行，Ctrl+C 优雅退出
 # 或： go build -o mockd.exe ./cmd/mockd && ./mockd.exe
 ```
 
-启动日志会逐行打出 9 个系统的监听地址；vcsim 额外打印完整 SDK URL 与默认凭据。
+启动日志会逐行打出 10 个系统的监听地址；vcsim 额外打印完整 SDK URL 与默认凭据。
 
 ## Oxidized 一次性上报流程（:19008）
 
@@ -108,6 +113,29 @@ curl -s http://127.0.0.1:19008/nodes                                # 节点清�
 curl -s http://127.0.0.1:19008/node/fetch/bj-core-sw-01             # 该节点最新配置文本
 curl -i http://127.0.0.1:19008/node/fetch/no-such-node              # 反例：未知节点 → 404
 
+# ---- fake K8s apiserver（:19009）：官方 metav1.List 壳 + discovery 契约（F-024 联调）----
+# discovery：client-go 按 /api → /api/v1、/apis → /apis/{group}/v1 协商可用资源
+curl -s -H "Authorization: Bearer dev-k8s-token" http://127.0.0.1:19009/api
+curl -s -H "Authorization: Bearer dev-k8s-token" http://127.0.0.1:19009/apis
+curl -s -H "Authorization: Bearer dev-k8s-token" http://127.0.0.1:19009/api/v1
+curl -s -H "Authorization: Bearer dev-k8s-token" http://127.0.0.1:19009/version     # v1.29.3
+# list：集群 volc-prod-k8s —— 3 Node / 3 namespace / 6 Pod（含 1 个 CrashLoopBackOff）/ 1 PV
+curl -s -H "Authorization: Bearer dev-k8s-token" http://127.0.0.1:19009/api/v1/nodes
+curl -s -H "Authorization: Bearer dev-k8s-token" http://127.0.0.1:19009/api/v1/namespaces
+curl -s -H "Authorization: Bearer dev-k8s-token" "http://127.0.0.1:19009/api/v1/pods?namespace=mall-front"
+curl -s -H "Authorization: Bearer dev-k8s-token" "http://127.0.0.1:19009/api/v1/pods?labelSelector=app=mall-front"
+curl -s -H "Authorization: Bearer dev-k8s-token" http://127.0.0.1:19009/api/v1/persistentvolumes
+# 工作负载与暴露面（均含 /namespaces/{ns}/ 前缀形态）
+curl -s -H "Authorization: Bearer dev-k8s-token" http://127.0.0.1:19009/apis/apps/v1/deployments
+curl -s -H "Authorization: Bearer dev-k8s-token" http://127.0.0.1:19009/apis/apps/v1/namespaces/mall-order/statefulsets
+curl -s -H "Authorization: Bearer dev-k8s-token" http://127.0.0.1:19009/apis/apps/v1/daemonsets
+curl -s -H "Authorization: Bearer dev-k8s-token" http://127.0.0.1:19009/api/v1/services
+curl -s -H "Authorization: Bearer dev-k8s-token" http://127.0.0.1:19009/apis/networking.k8s.io/v1/ingresses
+# resourceVersion 增量语义：先全量拿到 RV（如 1103），再带 ?resourceVersion=1103 请求
+# → 无变化返回空 items 与相同 resourceVersion；RV 落后或为 0 则返回全量
+curl -s -H "Authorization: Bearer dev-k8s-token" "http://127.0.0.1:19009/api/v1/pods?resourceVersion=1103"
+curl -i http://127.0.0.1:19009/api/v1/nodes                                        # 反例：无 Bearer → 401
+
 # ---- JumpServer（:19010）：资产 CRUD + 节点分组（F-071 同步联调），内存态写后读回 ----
 curl -s -H "Authorization: Token dev-token" http://127.0.0.1:19010/api/v1/assets/nodes/     # 节点树 /Default/电商平台/商城前台
 curl -s -H "Authorization: Token dev-token" http://127.0.0.1:19010/api/v1/assets/assets/    # 存量 2 台资产
@@ -141,6 +169,14 @@ curl -i http://127.0.0.1:19010/api/v1/assets/assets/                            
   （链路 1 与主机接入链路），远端端口名按对端设备自身命名习惯书写（真实 LLDP 行为）。
 - JumpServer 存量 2 台资产（`bj-srv-dl380-01`/`sh-srv-r750-01`）挂在节点树
   `/Default/电商平台/商城前台` 下，供 F-071 同步器演示“更新分组/退役禁用”之外的存量对账。
+- fake K8s apiserver（`fixtures/k8s-cluster.json`）承载集群 `volc-prod-k8s`：
+  3 Node 的 InternalIP（`10.30.1.11`/`10.30.1.12`/`10.30.2.21`）与 n9e targets 的主机 IP 一一呼应，
+  供 K8s Node 与主机 CI 合并演示；deployment `mall-front-web`（ns `mall-front`，app=mall-front）
+  经 service `mall-front-svc`、ingress `mall-front-ing`（host `mall.example.com`）暴露，
+  statefulset `order-db`（ns `mall-order`）、daemonset `node-agent`（ns `infra`，3 节点各一 Pod）；
+  6 个 Pod 中 `mall-front-web-7d9c5f8b6-fghij` 处于 CrashLoopBackOff（restartCount 37）。
+  resourceVersion 按资源类型各自固定（静态 fixture 无写入，故永不递增），
+  `?resourceVersion=` 大于等于当前值即视为“无变化”返回空 items。
 - NetBox IP 状态使用官方取值 `active/reserved/deprecated`，
   “已分配”语义以 `active` + `assigned_object_type/assigned_object_id` 表达。
 - `fixtures/volcengine-resources.json` 中 `Configuration` 以 JSON 对象书写便于维护，
@@ -154,6 +190,6 @@ curl -i http://127.0.0.1:19010/api/v1/assets/assets/                            
 mocks/
 ├── cmd/mockd/main.go        # 入口：信号处理 + 启动全部系统
 ├── embed.go                 # go:embed 内嵌 fixtures/
-├── fixtures/*.json          # 17 个数据文件
-└── internal/mocksys/        # 9 个系统的 handler 实现（每系统一个文件）
+├── fixtures/*.json          # 18 个数据文件
+└── internal/mocksys/        # 10 个系统的 handler 实现（每系统一个文件）
 ```

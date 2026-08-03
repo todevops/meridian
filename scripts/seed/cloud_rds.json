@@ -1,0 +1,17 @@
+{
+  "code": "cloud_rds",
+  "name": "云数据库",
+  "reconcile_keys": ["db_instance_id"],
+  "attributes": [
+    { "code": "db_instance_id", "name": "实例 ID（调和键）", "type": "string", "required": true, "unique": true, "source": "cloud" },
+    { "code": "name", "name": "实例名称", "type": "string", "source": "cloud" },
+    { "code": "engine", "name": "引擎", "type": "string", "source": "cloud" },
+    { "code": "engine_version", "name": "引擎版本", "type": "string", "source": "cloud" },
+    { "code": "spec", "name": "规格", "type": "string", "source": "cloud" },
+    { "code": "region", "name": "地域", "type": "string", "source": "cloud" },
+    { "code": "zone", "name": "可用区", "type": "string", "source": "cloud" },
+    { "code": "cloud_provider", "name": "云厂商", "type": "enum", "enum_values": ["aliyun", "volc"], "required": true, "source": "cloud" },
+    { "code": "status", "name": "状态", "type": "string", "source": "cloud" },
+    { "code": "tags", "name": "标签（逗号分隔）", "type": "string", "source": "cloud" }
+  ]
+}

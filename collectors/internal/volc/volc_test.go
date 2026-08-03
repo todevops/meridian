@@ -54,8 +54,8 @@ func TestCollectMapping(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Collect 失败: %v", err)
 	}
-	if len(recs) != 2 {
-		t.Fatalf("应产出 2 条记录（VPC 跳过）: %d", len(recs))
+	if len(recs) != 3 {
+		t.Fatalf("应产出 3 条记录（ECS+VKE+VPC）: %d", len(recs))
 	}
 
 	host := recs[0]
@@ -86,6 +86,15 @@ func TestCollectMapping(t *testing.T) {
 	}
 	if note, _ := va["note"].(string); !strings.Contains(note, "占位") {
 		t.Errorf("VKE 应有占位注记: %v", va["note"])
+	}
+
+	vpc := recs[2]
+	if vpc.ModelCandidate != "cloud_vpc" {
+		t.Errorf("VPC 应映射为 cloud_vpc: %s", vpc.ModelCandidate)
+	}
+	pa := vpc.Attributes
+	if pa["vpc_id"] != "vpc-001" || pa["name"] != "prod-vpc" || pa["cloud_provider"] != "volc" {
+		t.Errorf("VPC 字段映射不符: %+v", pa)
 	}
 }
 

@@ -35,9 +35,13 @@ const (
 	modelDBInstance   = "db_instance"
 	modelEsxiHost     = "esxi_host"
 	modelEsxiCluster  = "esxi_cluster"
+	modelK8sNamespace = "k8s_namespace"
+	modelK8sWorkload  = "k8s_workload"
 	relInstantiatedBy = "instantiated_by"
 	relRunsOn         = "runs_on"
 	relBelongsTo      = "belongs_to"
+	relMountedTo      = "mounted_to"
+	relInNamespace    = "in_namespace"
 )
 
 // Linker 是自动关联器。
@@ -87,6 +91,16 @@ func (l *Linker) Handle(ctx context.Context, ciID, action string) error {
 	case modelEsxiCluster:
 		// 集群后于 ESXi 主机建档时，从集群侧反向补挂主机从属关系。
 		run("cluster→esxi", l.linkEsxiCluster)
+	case modelK8sWorkload:
+		// 规则四（3B，F-024 整挂继承）：工作负载按 cluster+namespace 挂到命名空间；
+		// 命名空间已 mounted_to 应用时，工作负载自动继承 belongs_to 归属。
+		run("workload→namespace", l.linkWorkloadNamespace)
+	case modelK8sNamespace:
+		// 规则四（命名空间侧触发）：命名空间后于工作负载建档时反向补挂，
+		// 并把既有 mounted_to 归属传播给名下全部工作负载。
+		run("namespace→workloads", func(ctx context.Context, ns store.CI) error {
+			return l.PropagateNamespaceMount(ctx, ns.ID)
+		})
 	default:
 		// 其他模型无内置关联规则，直接跳过。
 	}
@@ -248,6 +262,124 @@ func (l *Linker) linkEsxiCluster(ctx context.Context, cluster store.CI) error {
 	return nil
 }
 
+// linkWorkloadNamespace 规则四（工作负载侧触发）：按 cluster+namespace 属性匹配
+// k8s_namespace 建 in_namespace 关系；命名空间已挂载应用时同步继承 belongs_to。
+func (l *Linker) linkWorkloadNamespace(ctx context.Context, wl store.CI) error {
+	cluster := attrString(wl.Attributes, "cluster")
+	nsName := attrString(wl.Attributes, "namespace")
+	if cluster == "" || nsName == "" {
+		return nil
+	}
+	ns, err := l.findNamespace(ctx, cluster, nsName)
+	if err != nil || ns == nil {
+		return err // 命名空间尚未建档，待其建档时由命名空间侧反向补挂
+	}
+	if err := l.ensureRelation(ctx, modelK8sWorkload, relInNamespace, wl, *ns); err != nil {
+		return err
+	}
+	return l.inheritMount(ctx, wl, *ns)
+}
+
+// PropagateNamespaceMount 把命名空间的 mounted_to 应用归属传播给名下全部工作负载：
+// 先补齐 in_namespace 关系，再为每个工作负载幂等建 belongs_to→biz_app；
+// 命名空间改挂其它应用时，仅替换自动（source=auto）归属，人工 belongs_to 不动。
+// 供两处调用：命名空间 CI 建档/更新的关联器钩子；人工创建 mounted_to 关系的 API。
+func (l *Linker) PropagateNamespaceMount(ctx context.Context, nsCIID string) error {
+	var ns store.CI
+	if err := l.db.WithContext(ctx).First(&ns, "id = ?", nsCIID).Error; err != nil {
+		return fmt.Errorf("加载命名空间 CI %s 失败: %w", nsCIID, err)
+	}
+	cluster := attrString(ns.Attributes, "cluster")
+	nsName := attrString(ns.Attributes, "name")
+	if cluster == "" || nsName == "" {
+		return nil
+	}
+	workloads, err := l.findWorkloads(ctx, cluster, nsName)
+	if err != nil {
+		return err
+	}
+	for _, wl := range workloads {
+		if err := l.ensureRelation(ctx, modelK8sWorkload, relInNamespace, wl, ns); err != nil {
+			return err
+		}
+		if err := l.inheritMount(ctx, wl, ns); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// inheritMount 为单个工作负载继承命名空间的应用归属（无 mounted_to 时不动）。
+func (l *Linker) inheritMount(ctx context.Context, wl, ns store.CI) error {
+	appID, err := l.mountedAppID(ctx, ns.ID)
+	if err != nil || appID == "" {
+		return err
+	}
+	var app store.CI
+	if err := l.db.WithContext(ctx).First(&app, "id = ?", appID).Error; err != nil {
+		return fmt.Errorf("加载应用 CI %s 失败: %w", appID, err)
+	}
+	// 改挂场景：清除指向其它应用的自动 belongs_to（人工归属永不触碰）。
+	if err := l.db.WithContext(ctx).
+		Where("relation_code = ? AND src_ci_id = ? AND dst_ci_id <> ? AND source = ?",
+			relBelongsTo, wl.ID, appID, store.RelationSourceAuto).
+		Delete(&store.CIRelation{}).Error; err != nil {
+		return fmt.Errorf("清理工作负载 %s 旧自动归属失败: %w", wl.ID, err)
+	}
+	return l.ensureRelation(ctx, modelK8sWorkload, relBelongsTo, wl, app)
+}
+
+// mountedAppID 取命名空间 mounted_to 关系指向的应用 CI ID（无则空串）。
+func (l *Linker) mountedAppID(ctx context.Context, nsCIID string) (string, error) {
+	var rels []store.CIRelation
+	if err := l.db.WithContext(ctx).
+		Where("relation_code = ? AND src_ci_id = ?", relMountedTo, nsCIID).
+		Limit(1).Find(&rels).Error; err != nil {
+		return "", fmt.Errorf("查询命名空间 %s 的 mounted_to 关系失败: %w", nsCIID, err)
+	}
+	if len(rels) == 0 {
+		return "", nil
+	}
+	return rels[0].DstCIID, nil
+}
+
+// findNamespace 按 cluster+name 属性查找 k8s_namespace CI；未命中返回 (nil, nil)。
+func (l *Linker) findNamespace(ctx context.Context, cluster, name string) (*store.CI, error) {
+	model, err := l.findModel(ctx, modelK8sNamespace)
+	if err != nil || model == nil {
+		return nil, err
+	}
+	var cis []store.CI
+	if err := l.db.WithContext(ctx).
+		Where("model_id = ? AND status <> ?", model.ID, "retired").
+		Where(datatypes.JSONQuery("attributes").Equals(cluster, "cluster")).
+		Where(datatypes.JSONQuery("attributes").Equals(name, "name")).
+		Limit(1).Find(&cis).Error; err != nil {
+		return nil, fmt.Errorf("查询命名空间 %s/%s 失败: %w", cluster, name, err)
+	}
+	if len(cis) == 0 {
+		return nil, nil
+	}
+	return &cis[0], nil
+}
+
+// findWorkloads 按 cluster+namespace 属性查找全部未退役 k8s_workload CI。
+func (l *Linker) findWorkloads(ctx context.Context, cluster, namespace string) ([]store.CI, error) {
+	model, err := l.findModel(ctx, modelK8sWorkload)
+	if err != nil || model == nil {
+		return nil, err
+	}
+	var cis []store.CI
+	if err := l.db.WithContext(ctx).
+		Where("model_id = ? AND status <> ?", model.ID, "retired").
+		Where(datatypes.JSONQuery("attributes").Equals(cluster, "cluster")).
+		Where(datatypes.JSONQuery("attributes").Equals(namespace, "namespace")).
+		Find(&cis).Error; err != nil {
+		return nil, fmt.Errorf("查询工作负载 %s/%s 失败: %w", cluster, namespace, err)
+	}
+	return cis, nil
+}
+
 // ensureRelation 幂等 upsert 一条关系：源模型的关系定义不存在、或对端模型与
 // target_model 不符时跳过（记日志，不报错）；关系已存在时不重复建。
 // 方向遵循关系定义：outgoing 时源模型 CI 为 src，incoming 时为 dst。
@@ -302,7 +434,7 @@ func (l *Linker) ensureRelation(ctx context.Context, srcModelCode, relCode strin
 	if count > 0 {
 		return nil // 幂等：关系已存在
 	}
-	rel := store.CIRelation{RelationCode: def.Code, SrcCIID: src, DstCIID: dst}
+	rel := store.CIRelation{RelationCode: def.Code, SrcCIID: src, DstCIID: dst, Source: store.RelationSourceAuto}
 	if err := l.db.WithContext(ctx).Create(&rel).Error; err != nil {
 		// 并发触发撞唯一约束视为已存在（幂等），不算失败。
 		if isUniqueViolation(err) {
