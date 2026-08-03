@@ -68,7 +68,7 @@ export const NAV_GROUPS: NavGroupDef[] = [
     label: "资产管理",
     items: [
       { href: "/hosts", label: "主机", icon: ServerIcon },
-      { href: "/applications", label: "应用归属", icon: AppWindowIcon },
+      { href: "/applications", label: "应用系统", icon: AppWindowIcon },
       { href: "/virtualization", label: "虚拟化", icon: LayersIcon },
       { href: "/cloud", label: "云资源", icon: CloudIcon },
       { href: "/k8s", label: "容器云", icon: ContainerIcon },

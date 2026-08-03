@@ -2,14 +2,13 @@
 package httpapi
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/datatypes"
 
+	"meridian/server/internal/jssync"
 	"meridian/server/internal/jumpserver"
 	"meridian/server/internal/lifecycle"
 	"meridian/server/internal/store"
@@ -98,30 +97,8 @@ func (s *Server) retireCI(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ci_id": ci.ID, "actions": actions})
 }
 
-// resolveJumpServerClient 解析 JumpServer 客户端：
-// 优先凭据库 type=jumpserver 的凭据（secret {"url"/"base_url","token"}），
-// 其次环境变量 JUMPSERVER_URL / JUMPSERVER_TOKEN；都未配置返回 nil（联动跳过）。
+// resolveJumpServerClient 解析 JumpServer 客户端（实现收敛至 jssync.ResolveClient：
+// 凭据库 type=jumpserver > 环境变量 JUMPSERVER_URL/JUMPSERVER_TOKEN，未配置返回 nil）。
 func (s *Server) resolveJumpServerClient() *jumpserver.Client {
-	if s.credCipher != nil {
-		var cred store.Credential
-		if err := s.db.Where("type = ?", store.CredentialTypeJumpServer).First(&cred).Error; err == nil {
-			if plain, err := s.credCipher.Decrypt(cred.SecretCiphertext); err == nil {
-				var secret map[string]any
-				if json.Unmarshal(plain, &secret) == nil {
-					baseURL, _ := secret["url"].(string)
-					if baseURL == "" {
-						baseURL, _ = secret["base_url"].(string)
-					}
-					token, _ := secret["token"].(string)
-					if baseURL != "" {
-						return jumpserver.NewClient(baseURL, token)
-					}
-				}
-			}
-		}
-	}
-	if baseURL := os.Getenv("JUMPSERVER_URL"); baseURL != "" {
-		return jumpserver.NewClient(baseURL, os.Getenv("JUMPSERVER_TOKEN"))
-	}
-	return nil
+	return jssync.ResolveClient(s.db, s.credCipher)
 }

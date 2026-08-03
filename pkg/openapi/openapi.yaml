@@ -1673,6 +1673,219 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /api/v1/applications/tree:
+    get:
+      tags: [applications]
+      summary: 两级业务树
+      operationId: getApplicationTree
+      description: |
+        应用聚合页导航树（F-027，3C）：biz_line 节点含应用数/主机数汇总
+        （主机数按业务线内去重），biz_app 节点含负责人/等级；
+        无 belongs_to 归属的应用进 unassigned 组。
+        关系按应用批量预取组装（禁 N+1）。
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 两级业务树
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationTree'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/applications/{app_id}/aggregate:
+    get:
+      tags: [applications]
+      summary: 应用详情一屏聚合
+      operationId: getApplicationAggregate
+      description: |
+        应用聚合（F-027，3C）：hosts=deployed_on 出向主机；
+        db_instances=depends_on 出向数据库实例；k8s_workloads=沿
+        in_namespace→mounted_to 两跳反查（via_namespace=true）∪ 直接
+        belongs_to 归属（via_namespace=false）；ips=host.ip 去重 + 所在
+        IPAM 前缀（最具体网段）；clouds=host_type=cloud 的主机。
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: app_id
+          in: path
+          description: 应用（biz_app）CI ID
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 应用聚合视图
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationAggregate'
+        '400':
+          description: 目标 CI 不是应用（biz_app）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/applications/{app_id}/dependencies:
+    get:
+      tags: [applications]
+      summary: 应用依赖拓扑
+      operationId: getApplicationDependencies
+      description: |
+        应用↔应用、应用↔DB 依赖拓扑（F-027，3C）：以本应用为心两跳以内，
+        节点限定 biz_app/db_instance 模型，边保留关系码（a→b 为关系方向）。
+        孤立应用返回单节点空边。
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: app_id
+          in: path
+          description: 应用（biz_app）CI ID
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 依赖拓扑（节点 + 边）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationDependencies'
+        '400':
+          description: 目标 CI 不是应用（biz_app）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/cis/{ci_id}/impact:
+    get:
+      tags: [applications]
+      summary: 资源影响面反查
+      operationId: getCIImpact
+      description: |
+        影响面反查（F-027，3C）：从任意 CI 出发，沿
+        belongs_to/deployed_on/depends_on/runs_on 入向最多两跳，
+        列出受影响 biz_app 及到达路径（path 为 model:label 与关系码交替的链路段）。
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: ci_id
+          in: path
+          description: 源 CI ID（主机/数据库等资源）
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 受影响应用清单
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CIImpact'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/integrations/jumpserver/sync:
+    post:
+      tags: [integrations]
+      summary: JumpServer 资产同步
+      operationId: syncJumpServer
+      description: |
+        JumpServer 资产同步（F-071，3C）：筛选"在用（status 非 retired）+
+        有业务归属（deployed_on/belongs_to 入向）"的 host CI，按
+        /Default/{biz_line}/{biz_app} 节点路径创建/更新资产
+        （name=ident、address=主 IP、platform=linux，资产-CI 以 address 为键）；
+        已同步但本环境已退役/失归属的 IP 资产调 disable 禁用
+        （非本环境主机的资产不动）；dry_run=true 只预演计数不写入。
+        凭据取 credentials type=jumpserver（secret url/base_url+token），
+        缺省回退环境变量 JUMPSERVER_URL/JUMPSERVER_TOKEN；另有每日定时兜底对账。
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dry_run:
+                  type: boolean
+                  description: 预演模式（只计数不写入）
+                  default: false
+      responses:
+        '200':
+          description: 同步结果计数
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JumpServerSyncResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          description: JumpServer 未配置或调用失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/integrations/umodel/stats:
+    get:
+      tags: [integrations]
+      summary: UModel 生成器统计
+      operationId: getUModelStats
+      description: |
+        UModel 生成器统计计数（F-073，3C）：实体/关联 upsert 累计、
+        tombstone 累计、最近一次每日全量对账完成时间。
+        计数为进程内存态（重启清零）。
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 生成器统计
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UModelStats'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          description: UModel 生成器未启用
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 components:
   securitySchemes:
     cookieAuth:
@@ -3068,6 +3281,194 @@ components:
         age_seconds:
           type: integer
           description: 创建至今秒数
+    ApplicationBrief:
+      type: object
+      description: 应用/业务线精简视图（F-027）
+      required: [id, code, name, owner, level]
+      properties:
+        id:
+          type: string
+        code:
+          type: string
+        name:
+          type: string
+        owner:
+          type: string
+          description: 负责人
+        level:
+          type: string
+          description: 等级（biz_line=critical/high/normal，biz_app=L1/L2/L3）
+    ApplicationTree:
+      type: object
+      description: 两级业务树（F-027）
+      required: [lines, unassigned]
+      properties:
+        lines:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/ApplicationBrief'
+              - type: object
+                required: [app_count, host_count, apps]
+                properties:
+                  app_count:
+                    type: integer
+                    description: 下属应用数
+                  host_count:
+                    type: integer
+                    description: 下属主机数（业务线内去重）
+                  apps:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApplicationBrief'
+        unassigned:
+          type: array
+          description: 无业务线归属的应用
+          items:
+            $ref: '#/components/schemas/ApplicationBrief'
+    ApplicationAggregate:
+      type: object
+      description: 应用详情一屏聚合（F-027）
+      required: [app, hosts, db_instances, k8s_workloads, ips, clouds]
+      properties:
+        app:
+          $ref: '#/components/schemas/ApplicationBrief'
+        hosts:
+          type: array
+          items:
+            type: object
+            required: [id, ident, ip, status, source]
+            properties:
+              id: {type: string}
+              ident: {type: string}
+              ip: {type: string}
+              status: {type: string}
+              source: {type: string}
+        db_instances:
+          type: array
+          items:
+            type: object
+            required: [id, instance_addr, version, role]
+            properties:
+              id: {type: string}
+              instance_addr: {type: string}
+              version: {type: string}
+              role: {type: string}
+        k8s_workloads:
+          type: array
+          items:
+            type: object
+            required: [id, kind, name, namespace, via_namespace]
+            properties:
+              id: {type: string}
+              kind: {type: string}
+              name: {type: string}
+              namespace: {type: string}
+              via_namespace:
+                type: boolean
+                description: true=经命名空间链继承归属，false=直接 belongs_to 归属
+        ips:
+          type: array
+          items:
+            type: object
+            required: [ip, prefix, host_id]
+            properties:
+              ip: {type: string}
+              prefix:
+                type: string
+                description: 所在 IPAM 网段 CIDR（未登记为空串）
+              host_id: {type: string}
+        clouds:
+          type: array
+          items:
+            type: object
+            required: [id, provider, spec, zone]
+            properties:
+              id: {type: string}
+              provider: {type: string}
+              spec: {type: string}
+              zone: {type: string}
+    ApplicationDependencies:
+      type: object
+      description: 应用依赖拓扑（F-027，两跳以内）
+      required: [nodes, edges]
+      properties:
+        nodes:
+          type: array
+          items:
+            type: object
+            required: [id, label, type]
+            properties:
+              id: {type: string}
+              label: {type: string}
+              type:
+                type: string
+                description: 模型编码（biz_app/db_instance）
+        edges:
+          type: array
+          items:
+            type: object
+            required: [a, b, code]
+            properties:
+              a:
+                type: string
+                description: 关系源端 CI ID
+              b:
+                type: string
+                description: 关系目标端 CI ID
+              code:
+                type: string
+                description: 关系码（如 depends_on）
+    CIImpact:
+      type: object
+      description: 资源影响面反查结果（F-027）
+      required: [affected]
+      properties:
+        affected:
+          type: array
+          items:
+            type: object
+            required: [app_id, app_name, path]
+            properties:
+              app_id: {type: string}
+              app_name: {type: string}
+              path:
+                type: array
+                description: 从源 CI 到应用的链路段（model:label 与关系码交替）
+                items:
+                  type: string
+    JumpServerSyncResult:
+      type: object
+      description: JumpServer 资产同步结果（F-071）
+      required: [created, updated, disabled, skipped, errors]
+      properties:
+        created:
+          type: integer
+        updated:
+          type: integer
+        disabled:
+          type: integer
+        skipped:
+          type: integer
+        errors:
+          type: array
+          description: "写动作失败明细（格式「IP: 错误」）"
+          items:
+            type: string
+    UModelStats:
+      type: object
+      description: UModel 生成器统计（F-073，进程内存态）
+      required: [entity_upserts, link_upserts, tombstones, last_sync]
+      properties:
+        entity_upserts:
+          type: integer
+        link_upserts:
+          type: integer
+        tombstones:
+          type: integer
+        last_sync:
+          type: string
+          description: 最近一次每日全量对账完成时间（RFC3339，从未对账为空串）
     ModelQuality:
       type: object
       description: 单模型质量指标快照（F-080）

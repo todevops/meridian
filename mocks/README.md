@@ -1,8 +1,8 @@
 # Meridian Mock 平台（mocks）
 
-二三期并行开发的官方接口 mock 平台：单二进制 `mockd` 并行启动 10 个 mock 系统，
+二三期并行开发的官方接口 mock 平台：单二进制 `mockd` 并行启动 11 个 mock 系统，
 数据全部来自 `fixtures/*.json`（内嵌进二进制，任意目录可运行）；
-vcsim 为 govmomi/simulator 进程内 vCenter 模拟器（不依赖 fixture）。
+vcsim 为 govmomi/simulator 进程内 vCenter 模拟器、UModel EntityStore 为纯内存态（两者均不依赖 fixture）。
 
 ## 端口与系统一览
 
@@ -18,6 +18,7 @@ vcsim 为 govmomi/simulator 进程内 vCenter 模拟器（不依赖 fixture）�
 | :19008 | Oxidized | 无（只读端点） | `GET /nodes`、`GET /node/fetch/{name}`；启动时默认执行一次性上报流程（见下） |
 | :19009 | fake K8s apiserver | `Authorization: Bearer <非空>`，否则 401 | discovery：`GET /api`、`/apis`、`/api/v1`、`/apis/apps/v1`、`/apis/networking.k8s.io/v1`、`/version`；list：`/api/v1/{namespaces,nodes,pods,services,persistentvolumes}`（pods/services 支持 `/namespaces/{ns}/` 前缀与 `?namespace=`、`?labelSelector=`）、`/apis/apps/v1/{deployments,statefulsets,daemonsets}`（含 namespaced 前缀）、`/apis/networking.k8s.io/v1/ingresses`；全部 list 支持 `?resourceVersion=` 增量语义 |
 | :19010 | JumpServer | `Authorization: Token <非空>`，否则 401 | `GET/POST /api/v1/assets/assets/`、`GET/PATCH /api/v1/assets/assets/{id}/`、`POST /api/v1/assets/assets/{id}/disable/`、`GET /api/v1/assets/nodes/`（内存态，写后 GET 可读回） |
+| :19011 | UModel EntityStore | `Authorization: Bearer <非空>`，否则 401 | `PUT /api/v1/entitysets/{set}/entities/{pk}`（upsert 实体，body=属性 JSON+`keep_alive_seconds`）、`PUT /api/v1/entitysets/{set}/links`（批量 upsert `[{src_pk,dst_pk,link_type}]`）、`GET /api/v1/entitysets/{set}/entities?keep_alive=`（含 dead 墓碑标记）、`GET /api/v1/graph/match?src=&depth=`（多跳遍历）、`GET /api/v1/stats`（计数断言） |
 
 每个端口均可用环境变量覆盖（如 `MOCK_N9E_ADDR=:29001`），对应关系见
 `internal/mocksys/mocksys.go` 的 `Load`。
@@ -35,7 +36,7 @@ go run ./cmd/mockd          # 前台运行，Ctrl+C 优雅退出
 # 或： go build -o mockd.exe ./cmd/mockd && ./mockd.exe
 ```
 
-启动日志会逐行打出 10 个系统的监听地址；vcsim 额外打印完整 SDK URL 与默认凭据。
+启动日志会逐行打出 11 个系统的监听地址；vcsim 额外打印完整 SDK URL 与默认凭据。
 
 ## Oxidized 一次性上报流程（:19008）
 
@@ -151,6 +152,29 @@ curl -s -X POST -H "Authorization: Token dev-token" \
   http://127.0.0.1:19010/api/v1/assets/assets/1a2b3c4d-0001-4000-8000-000000000001/disable/
 curl -s -H "Authorization: Token dev-token" http://127.0.0.1:19010/api/v1/assets/assets/    # 读回验证
 curl -i http://127.0.0.1:19010/api/v1/assets/assets/                                        # 反例：无 Token → 401
+
+# ---- UModel EntityStore（:19011）：EntitySet/EntitySetLink 写入 + 保活墓碑 + 图遍历（F-073 联调）----
+# 实体 upsert：body 为自由属性 JSON，keep_alive_seconds 为保活秒数（保留字段，不进 attrs）；
+# 同 (set,pk) 重复 PUT 覆盖属性并刷新 last_seen，响应带 first_seen/last_seen/dead
+curl -s -X PUT -H "Authorization: Bearer dev-umodel-token" -H 'Content-Type: application/json' \
+  -d '{"ip":"10.30.1.11","name":"web-node-01","keep_alive_seconds":300}' \
+  http://127.0.0.1:19011/api/v1/entitysets/host/entities/10.30.1.11
+curl -s -X PUT -H "Authorization: Bearer dev-umodel-token" -H 'Content-Type: application/json' \
+  -d '{"ip":"10.30.2.11","engine":"mysql","keep_alive_seconds":2}' \
+  http://127.0.0.1:19011/api/v1/entitysets/db_instance/entities/mysql-3306
+# 关联批量 upsert：[{src_pk,dst_pk,link_type}]，同键重复写入去重
+curl -s -X PUT -H "Authorization: Bearer dev-umodel-token" -H 'Content-Type: application/json' \
+  -d '[{"src_pk":"10.30.1.11","dst_pk":"mysql-3306","link_type":"depends_on"}]' \
+  http://127.0.0.1:19011/api/v1/entitysets/host/links
+# 实体列表：默认做保活判定，超 keep_alive_seconds 未更新的标 dead=true 但保留可查；
+# ?keep_alive=false 关闭判定（全部 dead=false 的原始视图）
+curl -s -H "Authorization: Bearer dev-umodel-token" http://127.0.0.1:19011/api/v1/entitysets/host/entities
+sleep 3 && curl -s -H "Authorization: Bearer dev-umodel-token" http://127.0.0.1:19011/api/v1/entitysets/db_instance/entities   # → dead=true（2 秒保活已过期，墓碑）
+# 图遍历：从 src 实体沿关联双向遍历 depth 跳（depth 缺省 1、上限 10），返回 {entities,links}
+curl -s -H "Authorization: Bearer dev-umodel-token" "http://127.0.0.1:19011/api/v1/graph/match?src=10.30.1.11&depth=2"
+# 计数断言：{entity_count,link_count,upsert_total,per_set{entities,links}}
+curl -s -H "Authorization: Bearer dev-umodel-token" http://127.0.0.1:19011/api/v1/stats
+curl -i http://127.0.0.1:19011/api/v1/stats                                                          # 反例：无 Bearer → 401
 ```
 
 ## 数据设计说明
@@ -183,6 +207,10 @@ curl -i http://127.0.0.1:19010/api/v1/assets/assets/                            
   响应时按官方协议序列化为 JSON 字符串。
 - vcsim 的 30 台 VM 中，每台 ESXi 的第 5 台（按名称排序，共 6 台）处于关电态且无 Guest IP，
   其余 VM 持有 `10.30.4.0/24` 虚拟化网段的静态 Guest IP，用于演示 vSphere 采集的电源状态分支。
+- UModel EntityStore（:19011）为纯内存态、无 fixture：主键即写入路径中的 `{pk}`（复用调和主键，
+  保证与 CMDB CI 一一对应幂等）；删除语义只有"标记下线+保活过期"——超 `keep_alive_seconds`
+  未刷新的实体在读取时标 `dead=true` 墓碑但保留可查（`?keep_alive=false` 可得无判定的原始视图），
+  与 F-073"事件驱动 upsert + 定时对账"的写入侧契约一一对应；`upsert_total` 供事件计数断言。
 
 ## 目录结构
 
@@ -191,5 +219,5 @@ mocks/
 ├── cmd/mockd/main.go        # 入口：信号处理 + 启动全部系统
 ├── embed.go                 # go:embed 内嵌 fixtures/
 ├── fixtures/*.json          # 18 个数据文件
-└── internal/mocksys/        # 10 个系统的 handler 实现（每系统一个文件）
+└── internal/mocksys/        # 11 个系统的 handler 实现（每系统一个文件）
 ```

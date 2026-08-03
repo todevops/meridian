@@ -12,6 +12,7 @@ import {
 } from "lucide-react"
 
 import { N9EPanel } from "@/components/n9e-panel"
+import { ImpactCard } from "@/components/impact-card"
 import { RelationGraph } from "@/components/relation-graph"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@workspace/ui/components/button"
@@ -297,6 +298,9 @@ export function HostDetail({ id }: { id: string }) {
 
       {/* n9e 监控嵌入面板（监控视图 + 当前告警） */}
       <N9EPanel ident={ident === "—" ? "" : ident} />
+
+      {/* F-027 资源影响面：沿关系链反查依赖当前主机的应用系统 */}
+      <ImpactCard ciId={ci.id} />
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         {/* 关系面板 */}

@@ -1,7 +1,7 @@
-// Package mocksys 装配并运行全部 10 个官方系统 mock 服务：
+// Package mocksys 装配并运行全部 11 个官方系统 mock 服务：
 // n9e(:19001)、NetBox(:19002)、LibreNMS(:19003)、TSDB(:19004)、
 // 阿里云(:19005)、火山引擎(:19006)、vcsim(:19007)、Oxidized(:19008)、
-// fake K8s apiserver(:19009)、JumpServer(:19010)，各自独立端口、goroutine 并行。
+// fake K8s apiserver(:19009)、JumpServer(:19010)、UModel EntityStore(:19011)，各自独立端口、goroutine 并行。
 package mocksys
 
 import (
@@ -29,7 +29,7 @@ func listenAddr(envKey, def string) string {
 	return def
 }
 
-// Load 读取全部 fixture 并构建 10 个 mock 系统；任一 fixture 非法即失败。
+// Load 读取全部 fixture 并构建 11 个 mock 系统；任一 fixture 非法即失败。
 func Load() ([]System, error) {
 	builders := []struct {
 		name   string
@@ -47,6 +47,7 @@ func Load() ([]System, error) {
 		{"oxidized", "MOCK_OXIDIZED_ADDR", ":19008", newOxidized},
 		{"k8s", "MOCK_K8S_ADDR", ":19009", newK8s},
 		{"jumpserver", "MOCK_JUMPSERVER_ADDR", ":19010", newJumpServer},
+		{"umodel", "MOCK_UMODEL_ADDR", ":19011", newUModel},
 	}
 
 	systems := make([]System, 0, len(builders))

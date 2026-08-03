@@ -29,5 +29,5 @@ func newTestRouter(t *testing.T, db *gorm.DB, authSvc *auth.Service, n9eClient .
 	if len(n9eClient) > 0 {
 		nc = n9eClient[0]
 	}
-	return NewRouter(db, pipeline, authSvc, cipher, sched, nc)
+	return NewRouter(db, pipeline, authSvc, cipher, sched, nc, nil)
 }

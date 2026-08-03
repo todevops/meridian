@@ -1442,3 +1442,148 @@ export interface ListK8sPodsParams {
 export function listK8sPods(params: ListK8sPodsParams): Promise<K8sPod[]> {
   return request<K8sPod[]>("/v1/k8s/pods", { query: { ...params } })
 }
+
+// ---------- 应用聚合（F-027：两级业务树 + 一屏聚合 + 依赖拓扑 + 影响面反查） ----------
+// 提示级契约（阶段三 3C）：聚合数据沿关系图实时组装，依赖拓扑限定两跳以内。
+
+/** 业务树上的应用节点摘要 */
+export interface AppTreeApp {
+  id: string
+  code?: string
+  name?: string
+  owner?: string
+  level?: string
+}
+
+/** 业务线节点（含应用数与主机数汇总 Badge 数据） */
+export interface AppTreeLine {
+  id: string
+  code?: string
+  name?: string
+  owner?: string
+  level?: string
+  app_count: number
+  host_count: number
+  apps: AppTreeApp[]
+}
+
+export interface ApplicationTree {
+  lines: AppTreeLine[]
+  /** 未归属业务线的应用，展示时居底 */
+  unassigned: AppTreeApp[]
+}
+
+export function getApplicationTree(): Promise<ApplicationTree> {
+  return request<ApplicationTree>("/v1/applications/tree")
+}
+
+/** 聚合视图头卡：应用基础信息（字段宽松，缺省展示 —） */
+export interface AppAggregateApp {
+  id?: string
+  code?: string
+  name?: string
+  owner?: string
+  level?: string
+  /** 所属业务线名称 */
+  line?: string
+}
+
+export interface AppAggregateHost {
+  id: string
+  ident?: string
+  ip?: string
+  status?: string
+  source?: string
+}
+
+export interface AppAggregateDBInstance {
+  id: string
+  instance_addr?: string
+  version?: string
+  role?: string
+}
+
+export interface AppAggregateK8sWorkload {
+  id: string
+  kind?: string
+  name?: string
+  namespace?: string
+  /** 归属链注明：经该命名空间整挂继承到应用 */
+  via_namespace?: string
+}
+
+export interface AppAggregateIP {
+  ip: string
+  prefix?: string
+  host_id?: string
+}
+
+export interface AppAggregateCloud {
+  id: string
+  provider?: string
+  spec?: string
+  zone?: string
+}
+
+/** 应用一屏聚合：五类资源沿关系图实时组装 */
+export interface ApplicationAggregate {
+  app: AppAggregateApp
+  hosts: AppAggregateHost[]
+  db_instances: AppAggregateDBInstance[]
+  k8s_workloads: AppAggregateK8sWorkload[]
+  ips: AppAggregateIP[]
+  clouds: AppAggregateCloud[]
+}
+
+export function getApplicationAggregate(
+  appId: string
+): Promise<ApplicationAggregate> {
+  return request<ApplicationAggregate>(
+    `/v1/applications/${encodeURIComponent(appId)}/aggregate`
+  )
+}
+
+/** 依赖拓扑节点（type 区分 app/db，本应用为中心节点） */
+export interface AppDependencyNode {
+  id: string
+  label: string
+  type?: string
+}
+
+/** 依赖拓扑边：a → b，code 为关系码标签 */
+export interface AppDependencyEdge {
+  a: string
+  b: string
+  code?: string
+}
+
+/** 应用↔应用 / 应用↔DB 依赖拓扑（两跳截断） */
+export interface AppDependencyGraph {
+  nodes: AppDependencyNode[]
+  edges: AppDependencyEdge[]
+}
+
+export function getApplicationDependencies(
+  appId: string
+): Promise<AppDependencyGraph> {
+  return request<AppDependencyGraph>(
+    `/v1/applications/${encodeURIComponent(appId)}/dependencies`
+  )
+}
+
+/** 影响面条目：受当前 CI 影响的应用及路径链路文本 */
+export interface CIImpactItem {
+  app_id: string
+  app_name?: string
+  /** 路径链路文本，如「host-a ←runs_on— db-1 ←depends_on— 应用X」 */
+  path?: string
+}
+
+/** 资源影响面反查（从主机/DB 反查受影响应用链） */
+export interface CIImpact {
+  affected: CIImpactItem[]
+}
+
+export function getCIImpact(ciId: string): Promise<CIImpact> {
+  return request<CIImpact>(`/v1/cis/${encodeURIComponent(ciId)}/impact`)
+}

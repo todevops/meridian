@@ -19,9 +19,11 @@ import (
 	"meridian/server/internal/db"
 	"meridian/server/internal/discovery"
 	"meridian/server/internal/httpapi"
+	"meridian/server/internal/jssync"
 	"meridian/server/internal/n9e"
 	"meridian/server/internal/scheduler"
 	"meridian/server/internal/stream"
+	"meridian/server/internal/umodelgen"
 )
 
 func main() {
@@ -104,8 +106,17 @@ func main() {
 	}
 	go auditrules.NewEngine(gdb).RunDailyLoop(bgCtx)
 
+	// UModel 生成器（F-073）：订阅调和 PostHook 事件式 upsert + 每日全量对账。
+	umodelGen := umodelgen.NewFromEnv(gdb)
+	pipeline.Engine().AddPostHook(umodelGen.Handle)
+	go umodelGen.RunDailyLoop(bgCtx)
+
+	// JumpServer 资产同步（F-071）：每日兜底对账（事件式同步由本服务内
+	// POST /api/v1/integrations/jumpserver/sync 触发；未配置时每日通道记日志跳过）。
+	go jssync.RunDailyLoop(bgCtx, gdb, credCipher)
+
 	// HTTP 服务。
-	r := httpapi.NewRouter(gdb, pipeline, authSvc, credCipher, sched, n9eClient)
+	r := httpapi.NewRouter(gdb, pipeline, authSvc, credCipher, sched, n9eClient, umodelGen)
 	srv := &http.Server{Addr: cfg.HTTPAddr, Handler: r}
 
 	// 捕获 SIGINT/SIGTERM 实现优雅关闭。

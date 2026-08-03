@@ -33,6 +33,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { CIDetailDrawer } from "@/components/ci-detail-drawer"
+import { ImpactCard } from "@/components/impact-card"
 import { RelationPeerCell } from "@/components/relation-peer-cell"
 import type { CI } from "@/lib/api"
 import { listAllCIs, resolveModelId } from "@/lib/cis"
@@ -324,6 +325,7 @@ export default function DbmsPage() {
         onOpenChange={(open) => {
           if (!open) setSelected(null)
         }}
+        extra={selected ? <ImpactCard ciId={selected.id} /> : null}
       />
     </div>
   )

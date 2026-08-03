@@ -17,6 +17,7 @@ import (
 	"meridian/server/internal/ipam"
 	"meridian/server/internal/n9e"
 	"meridian/server/internal/scheduler"
+	"meridian/server/internal/umodelgen"
 )
 
 // 错误码（机器可读）。
@@ -44,12 +45,14 @@ type Server struct {
 	n9eClient *n9e.Client
 	// oxidizedToken 为 Oxidized webhook 共享密钥（env OXIDIZED_WEBHOOK_TOKEN，默认 dev-oxidized-token）。
 	oxidizedToken string
+	// umodelGen 为 UModel 生成器（F-073，可空：未启用时 stats 接口返回 503）。
+	umodelGen *umodelgen.Generator
 }
 
 // NewRouter 构建完整路由（健康检查 + /api/v1 业务接口）。
 // 除 /healthz、/readyz 与 /api/v1/auth/login 外，所有接口需认证；
 // 业务接口按权限点鉴权（权限点目录见 auth 包 catalog）。
-func NewRouter(db *gorm.DB, pipeline *discovery.Pipeline, authSvc *auth.Service, credCipher *credentials.Cipher, sched *scheduler.Scheduler, n9eClient *n9e.Client) *gin.Engine {
+func NewRouter(db *gorm.DB, pipeline *discovery.Pipeline, authSvc *auth.Service, credCipher *credentials.Cipher, sched *scheduler.Scheduler, n9eClient *n9e.Client, umodelGen *umodelgen.Generator) *gin.Engine {
 	s := &Server{
 		db:            db,
 		pipeline:      pipeline,
@@ -60,6 +63,7 @@ func NewRouter(db *gorm.DB, pipeline *discovery.Pipeline, authSvc *auth.Service,
 		scheduler:     sched,
 		n9eClient:     n9eClient,
 		oxidizedToken: defaultStringEnv("OXIDIZED_WEBHOOK_TOKEN", "dev-oxidized-token"),
+		umodelGen:     umodelGen,
 	}
 
 	r := gin.Default()
@@ -104,6 +108,13 @@ func NewRouter(db *gorm.DB, pipeline *discovery.Pipeline, authSvc *auth.Service,
 		authed.GET("/cis/:ci_id/relations", s.require("ci:read"), s.listCIRelations)
 		authed.POST("/cis/:ci_id/relations", s.require("ci:write"), s.createCIRelation)
 		authed.DELETE("/cis/:ci_id/relations/:relation_code/:peer_ci_id", s.require("ci:write"), s.deleteCIRelation)
+		// 资源影响面反查（F-027）：入向两跳列出受影响应用。
+		authed.GET("/cis/:ci_id/impact", s.require("ci:read"), s.getCIImpact)
+
+		// 应用系统聚合（F-027）：两级业务树、一屏聚合、依赖拓扑。
+		authed.GET("/applications/tree", s.require("ci:read"), s.getApplicationTree)
+		authed.GET("/applications/:app_id/aggregate", s.require("ci:read"), s.getApplicationAggregate)
+		authed.GET("/applications/:app_id/dependencies", s.require("ci:read"), s.getApplicationDependencies)
 
 		authed.POST("/discovery-records", s.require("discovery:write"), s.createDiscoveryRecords)
 		authed.POST("/reconcile/preview", s.require("discovery:read"), s.previewReconcile)
@@ -152,6 +163,10 @@ func NewRouter(db *gorm.DB, pipeline *discovery.Pipeline, authSvc *auth.Service,
 		authed.POST("/integrations/n9e/writeback", s.require("ci:write"), s.handleN9EWriteback)
 		authed.GET("/integrations/n9e/dashboard-url", s.require("ci:read"), s.handleN9EDashboardURL)
 		authed.GET("/integrations/n9e/alerts", s.require("ci:read"), s.handleN9EAlerts)
+
+		// JumpServer 资产同步（F-071）与 UModel 生成器统计（F-073）。
+		authed.POST("/integrations/jumpserver/sync", s.require("ci:write"), s.handleJumpServerSync)
+		authed.GET("/integrations/umodel/stats", s.require("ci:read"), s.handleUModelStats)
 
 		// 应用归属引擎（F-028）：按规则把 host 挂接到 biz_app。
 		authed.POST("/attribution/run", s.require("ci:write"), s.handleAttributionRun)
