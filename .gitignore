@@ -42,3 +42,7 @@ meridian-dev.db
 
 # CodeGraph 本地索引（自动生成）
 .codegraph/
+
+# 迁移/对账运行报告产物
+/migration-report.json
+/verify-report.json
