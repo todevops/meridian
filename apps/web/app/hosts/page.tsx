@@ -40,7 +40,7 @@ import {
   type Paged,
 } from "@/lib/api"
 import { CI_STATUS_LABELS, CI_STATUSES } from "@/lib/labels"
-import { pickAttr } from "@/lib/format"
+import { formatDateTime, pickAttr } from "@/lib/format"
 
 const PAGE_SIZE = 20
 
@@ -169,7 +169,7 @@ export default function HostsPage() {
       {
         id: "heartbeat",
         header: "最近心跳",
-        cell: ({ row }) => hostAttr(row.original, "heartbeat"),
+        cell: ({ row }) => formatDateTime(hostAttr(row.original, "heartbeat")),
       },
     ],
     []

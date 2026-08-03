@@ -166,7 +166,11 @@ export default function PoolPage() {
       {
         accessorKey: "created_at",
         header: "发现时间",
-        cell: ({ row }) => formatDateTime(row.original.created_at),
+        cell: ({ row }) => (
+          <span className="whitespace-nowrap">
+            {formatDateTime(row.original.created_at)}
+          </span>
+        ),
       },
       {
         id: "actions",
@@ -174,10 +178,10 @@ export default function PoolPage() {
         cell: ({ row }) => {
           if (row.original.status !== "pending") return null
           return (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 whitespace-nowrap">
               <Button
                 variant="ghost"
-                size="sm"
+                size="xs"
                 onClick={() => {
                   setConfirming(row.original)
                   setConfirmOpen(true)
@@ -187,7 +191,7 @@ export default function PoolPage() {
               </Button>
               <Button
                 variant="ghost"
-                size="sm"
+                size="xs"
                 className="text-destructive"
                 onClick={() => {
                   setIgnoreError(null)

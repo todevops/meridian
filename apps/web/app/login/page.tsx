@@ -59,7 +59,7 @@ function LoginForm() {
           <div className="mb-1 flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <DatabaseIcon className="size-5" />
           </div>
-          <CardTitle className="text-lg">CMDB 配置管理中心</CardTitle>
+          <CardTitle className="text-lg">Meridian 配置管理中心</CardTitle>
           <CardDescription>请使用系统账号登录</CardDescription>
         </CardHeader>
         <CardContent>

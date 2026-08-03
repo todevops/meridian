@@ -249,7 +249,7 @@ export default function Page() {
   return (
     <div className="flex w-full flex-col gap-6 p-6">
       <header className="flex flex-col items-center gap-4 pt-8 text-center">
-        <h1 className="text-xl font-semibold">CMDB 配置管理中心</h1>
+        <h1 className="text-xl font-semibold">Meridian 配置管理中心</h1>
         <p className="text-xs text-muted-foreground">
           全局搜索模型、CI 实例、IPAM 地址与机房机柜
         </p>

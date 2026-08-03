@@ -51,7 +51,7 @@ function readCollapsedKeys(): string[] {
 
 function navLinkClass(active: boolean) {
   return cn(
-    "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors",
+    "flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] transition-colors",
     active
       ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
       : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground"
@@ -154,7 +154,7 @@ export function AppSidebar() {
     <aside className="sticky top-0 flex h-svh w-56 shrink-0 flex-col border-r bg-sidebar">
       <div className="flex h-14 items-center border-b px-4">
         <Link href="/" className="text-sm font-semibold tracking-tight">
-          CMDB 配置管理中心
+          Meridian 配置管理中心
         </Link>
       </div>
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
@@ -180,7 +180,7 @@ export function AppSidebar() {
                 onClick={() => toggleGroup(group.key)}
                 aria-expanded={!isCollapsed}
                 className={cn(
-                  "mt-2 flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium transition-colors hover:text-foreground",
+                  "mt-2 flex items-center gap-1.5 rounded-md px-3 py-1 text-[13px] font-medium transition-colors hover:text-foreground",
                   groupActive ? "text-foreground" : "text-muted-foreground"
                 )}
               >

@@ -10,12 +10,12 @@ import { breadcrumbFor } from "@/lib/nav"
 
 export function BreadcrumbBar() {
   const pathname = usePathname()
-  if (pathname === "/login") return null
+  if (pathname === "/login" || pathname === "/") return null
   const crumb = breadcrumbFor(pathname)
   if (!crumb) return null
 
   return (
-    <div className="flex h-11 items-center gap-1.5 border-b px-6 text-sm text-muted-foreground">
+    <div className="flex h-11 items-center gap-1.5 border-b px-6 text-[13px] text-muted-foreground">
       <Link
         href="/"
         className="transition-colors hover:text-foreground"

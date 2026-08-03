@@ -15,8 +15,8 @@ const fontMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "CMDB 配置管理中心",
-  description: "企业级纯自研 CMDB 平台",
+  title: "Meridian 配置管理中心",
+  description: "企业级纯自研 CMDB（配置管理数据库）平台",
 }
 
 export default function RootLayout({
