@@ -1,17 +1,78 @@
 {
   "code": "k8s_workload",
   "name": "K8s 工作负载",
-  "reconcile_keys": ["cluster", "namespace", "kind", "name"],
+  "reconcile_keys": [
+    "uid"
+  ],
   "attributes": [
-    { "code": "cluster", "name": "集群", "type": "string", "required": true, "source": "apiserver" },
-    { "code": "namespace", "name": "命名空间", "type": "string", "required": true, "source": "apiserver" },
-    { "code": "kind", "name": "类型", "type": "enum", "enum_values": ["Deployment", "StatefulSet", "DaemonSet"], "required": true, "source": "apiserver" },
-    { "code": "name", "name": "名称", "type": "string", "required": true, "source": "apiserver" },
-    { "code": "image", "name": "镜像", "type": "string", "source": "apiserver" },
-    { "code": "replicas", "name": "副本数", "type": "number", "source": "apiserver" }
+    {
+      "code": "uid",
+      "name": "唯一标识(cluster/ns/kind/name)",
+      "type": "string",
+      "required": true,
+      "unique": true,
+      "source": "apiserver"
+    },
+    {
+      "code": "cluster",
+      "name": "集群",
+      "type": "string",
+      "required": true,
+      "source": "apiserver"
+    },
+    {
+      "code": "namespace",
+      "name": "命名空间",
+      "type": "string",
+      "required": true,
+      "source": "apiserver"
+    },
+    {
+      "code": "kind",
+      "name": "类型",
+      "type": "enum",
+      "enum_values": [
+        "Deployment",
+        "StatefulSet",
+        "DaemonSet"
+      ],
+      "required": true,
+      "source": "apiserver"
+    },
+    {
+      "code": "name",
+      "name": "名称",
+      "type": "string",
+      "required": true,
+      "source": "apiserver"
+    },
+    {
+      "code": "image",
+      "name": "镜像",
+      "type": "string",
+      "source": "apiserver"
+    },
+    {
+      "code": "replicas",
+      "name": "副本数",
+      "type": "number",
+      "source": "apiserver"
+    }
   ],
   "relations": [
-    { "code": "belongs_to", "name": "归属应用", "target_model": "biz_app", "cardinality": "one_to_one", "direction": "outgoing" },
-    { "code": "in_namespace", "name": "归属命名空间", "target_model": "k8s_namespace", "cardinality": "one_to_one", "direction": "outgoing" }
+    {
+      "code": "belongs_to",
+      "name": "归属应用",
+      "target_model": "biz_app",
+      "cardinality": "one_to_one",
+      "direction": "outgoing"
+    },
+    {
+      "code": "in_namespace",
+      "name": "归属命名空间",
+      "target_model": "k8s_namespace",
+      "cardinality": "one_to_one",
+      "direction": "outgoing"
+    }
   ]
 }

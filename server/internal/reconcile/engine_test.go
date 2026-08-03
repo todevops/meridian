@@ -735,3 +735,69 @@ func TestSourcePrioritiesMatchCollectorKeys(t *testing.T) {
 		}
 	}
 }
+
+// TestK8sNodeMergesWithHostByIP 核验 K8s Node 合并（3B，F-024）：
+// k8s_node 记录（host_type=k8s_node，仅携带 ip+ident）与 n9e 建档主机同 IP 时
+// 必须合并为同一 CI 并补 host_type，不得重复建档。
+// 调和键链对齐生产种子 ["instance_uuid","cloud_instance_id","serial_no","ip","ident"]。
+func TestK8sNodeMergesWithHostByIP(t *testing.T) {
+	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", t.Name())
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+	if err != nil {
+		t.Fatalf("打开内存库失败: %v", err)
+	}
+	if err := db.AutoMigrate(store.AllModels()...); err != nil {
+		t.Fatalf("迁移失败: %v", err)
+	}
+	model := store.Model{
+		Name: "主机", Code: "host",
+		Attributes: datatypes.NewJSONType([]store.AttributeDefinition{
+			{Name: "实例 UUID", Code: "instance_uuid", Type: "string"},
+			{Name: "主机标识", Code: "ident", Type: "string", Required: true},
+			{Name: "内网IP", Code: "ip", Type: "ip", Required: true, Unique: true},
+			{Name: "主机类型", Code: "host_type", Type: "enum", EnumValues: []string{"physical", "virtual_machine", "cloud", "k8s_node", "unknown"}},
+		}),
+		ReconcileKeys: datatypes.NewJSONType([]string{"instance_uuid", "cloud_instance_id", "serial_no", "ip", "ident"}),
+	}
+	if err := db.Create(&model).Error; err != nil {
+		t.Fatalf("创建模型失败: %v", err)
+	}
+	engine := NewEngine(db)
+	ctx := context.Background()
+
+	// n9e 先建档（ident 为监控口径主机名）。
+	d, err := engine.Evaluate(ctx, Record{
+		Source: "n9e", Collector: "n9e-target-puller", ModelCandidate: "host",
+		Attributes: map[string]any{"ident": "k8s-worker-03.monitor", "ip": "10.20.0.13"},
+		OccurredAt: time.Now(),
+	}, false)
+	if err != nil || d.Action != ActionCreate {
+		t.Fatalf("n9e 建档失败: action=%s err=%v", d.Action, err)
+	}
+
+	// K8s 采集器上报同一节点：ident 不同（节点名）、同 IP、host_type=k8s_node。
+	d, err = engine.Evaluate(ctx, Record{
+		Source: "apiserver", Collector: "k8s-collector", ModelCandidate: "host",
+		Attributes: map[string]any{"ident": "k8s-worker-03", "ip": "10.20.0.13", "host_type": "k8s_node"},
+		OccurredAt: time.Now(),
+	}, false)
+	if err != nil {
+		t.Fatalf("k8s_node 记录调和失败: %v", err)
+	}
+	if d.Action != ActionUpdate {
+		t.Fatalf("同 IP 应合并（update），实际 %s（%v）", d.Action, d.Reasons)
+	}
+	if n := countCIs(t, db, model.ID); n != 1 {
+		t.Fatalf("不得重复建档，实际 %d 个 CI", n)
+	}
+	var ci store.CI
+	if err := db.First(&ci, "id = ?", d.MatchedCIID).Error; err != nil {
+		t.Fatalf("加载 CI 失败: %v", err)
+	}
+	if ci.Attributes["host_type"] != "k8s_node" {
+		t.Fatalf("合并后应补 host_type=k8s_node，实际 %v", ci.Attributes["host_type"])
+	}
+	if ci.Attributes["ident"] != "k8s-worker-03.monitor" {
+		t.Fatalf("低优先级来源不得覆盖 n9e 的 ident，实际 %v", ci.Attributes["ident"])
+	}
+}

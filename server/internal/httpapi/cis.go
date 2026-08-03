@@ -240,10 +240,15 @@ func (s *Server) listCIRelations(c *gin.Context) {
 		if err := s.db.First(&peer, "id = ?", peerID).Error; err != nil {
 			continue // 对端已被删除，跳过悬空关系
 		}
+		source := rel.Source
+		if source == "" {
+			source = store.RelationSourceManual
+		}
 		items = append(items, gin.H{
 			"relation_code": rel.RelationCode,
 			"direction":     direction,
 			"peer_ci":       peer,
+			"source":        source,
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"items": items})

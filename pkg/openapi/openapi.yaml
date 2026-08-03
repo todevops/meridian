@@ -1561,6 +1561,118 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /api/v1/topology:
+    get:
+      tags: [topology]
+      summary: 网络拓扑链路图
+      operationId: getTopology
+      description: |
+        网络拓扑（F-061，3B）：节点为全部未退役 network_device（room 沿
+        located_in→rack→located_in→room 两跳解析）及链路端点 CI；
+        边主要来自 network_link 发现记录（LLDP/CDP 邻居表，经调和引擎内建消费，
+        调和主键 local_device+local_port+remote_device+remote_port 四元组幂等），
+        双向互证的两条记录合并为一条边；无链路记录佐证的 connected_to 关系
+        补为无端口信息的边。边 source 为建档来源（auto=采集自动建链，manual=人工建联）。
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 拓扑图（节点 + 边）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TopologyGraph'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/topology/host-location:
+    get:
+      tags: [topology]
+      summary: 主机接入端口定位
+      operationId: getHostLocation
+      description: |
+        ARP/MAC 交叉定位（F-061）：ip→host CI（或 ip_scan 原始发现记录）取 mac
+        →network_link 记录 local/remote 命中（MAC 归一化比较）→对端交换机与端口。
+        任一环未命中返回 404。
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: ip
+          in: query
+          description: 待定位主机 IP
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 接入定位结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HostLocation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/k8s/pods:
+    get:
+      tags: [k8s]
+      summary: K8s Pod 实况代理
+      operationId: listK8sPods
+      description: |
+        Pod 实况直查 apiserver（F-024，不落库）：凭据取 credentials 表
+        type=kubeconfig（secret 的 api_url/server 与 token 字段），缺省回退环境变量
+        K8S_API_URL（默认 http://localhost:19009）/K8S_TOKEN（默认 dev-k8s-token）；
+        上游超时 10s，失败返回 502。当前仅支持单集群——cluster 参数与配置集群名
+        （K8S_CLUSTER_NAME，默认 volc-prod-k8s）不符时返回空列表。
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: cluster
+          in: query
+          description: 集群名（须与配置集群一致，否则返回空列表）
+          required: false
+          schema:
+            type: string
+        - name: namespace
+          in: query
+          description: 命名空间过滤
+          required: false
+          schema:
+            type: string
+        - name: selector
+          in: query
+          description: labelSelector 标签选择器
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Pod 精简视图数组
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/K8sPod'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '502':
+          description: apiserver 调用失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 components:
   securitySchemes:
     cookieAuth:
@@ -2863,6 +2975,99 @@ components:
           items:
             type: string
           description: 未命中任何规则的主机 ident
+    TopologyGraph:
+      type: object
+      description: 网络拓扑图（F-061）
+      required: [nodes, edges]
+      properties:
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/TopologyNode'
+        edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/TopologyEdge'
+    TopologyNode:
+      type: object
+      required: [id, name, model_code, room]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: CI ID
+        name:
+          type: string
+          description: 节点显示名（name/ident/mgmt_ip/serial_no 依次回退）
+        model_code:
+          type: string
+          description: 所属模型编码（如 network_device/host）
+        room:
+          type: string
+          description: 所在机房名（沿 located_in→rack→room 解析，未知为空串）
+    TopologyEdge:
+      type: object
+      required: [a, b, a_port, b_port, source]
+      properties:
+        a:
+          type: string
+          format: uuid
+          description: 端点 A 的 CI ID（字典序稳定端）
+        b:
+          type: string
+          format: uuid
+          description: 端点 B 的 CI ID
+        a_port:
+          type: string
+          description: A 侧端口（关系补边无端口信息时为空串）
+        b_port:
+          type: string
+          description: B 侧端口
+        source:
+          type: string
+          enum: [auto, manual]
+          description: 建档来源（auto=采集自动建链，manual=人工建联）
+    HostLocation:
+      type: object
+      description: 主机接入端口定位结果（F-061）
+      required: [ip, mac, switch, port, protocol]
+      properties:
+        ip:
+          type: string
+          description: 定位的 IP
+        mac:
+          type: string
+          description: 命中的 MAC（保留数据源原始形态）
+        switch:
+          type: string
+          description: 接入交换机名
+        port:
+          type: string
+          description: 接入端口
+        protocol:
+          type: string
+          description: 发现协议（lldp/cdp/arp 等）
+    K8sPod:
+      type: object
+      description: K8s Pod 精简视图（F-024，apiserver 实况，不落库）
+      required: [name, namespace, phase, node, restart_count, age_seconds]
+      properties:
+        name:
+          type: string
+        namespace:
+          type: string
+        phase:
+          type: string
+          description: Pod 阶段（Running/Pending/Failed 等）
+        node:
+          type: string
+          description: 所在节点名
+        restart_count:
+          type: integer
+          description: 全部容器重启次数之和
+        age_seconds:
+          type: integer
+          description: 创建至今秒数
     ModelQuality:
       type: object
       description: 单模型质量指标快照（F-080）

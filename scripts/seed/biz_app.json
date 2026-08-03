@@ -7,6 +7,7 @@
     { "code": "owner", "name": "负责人", "type": "string", "source": "manual" },
     { "code": "level", "name": "等级", "type": "enum", "enum_values": ["L1", "L2", "L3"], "source": "manual" }
   ],
+  "reconcile_keys": ["code"],
   "relations": [
     { "code": "belongs_to", "name": "归属业务线", "target_model": "biz_line", "cardinality": "one_to_one", "direction": "outgoing" },
     { "code": "deployed_on", "name": "部署于（一应用可部署多台主机）", "target_model": "host", "cardinality": "many_to_many", "direction": "outgoing" },

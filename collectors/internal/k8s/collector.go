@@ -179,6 +179,8 @@ func mapNamespace(clusterName, name string, now time.Time) record.Record {
 	return newRecord("k8s_namespace", map[string]any{
 		"cluster": clusterName,
 		"name":    name,
+		// uid 为调和主键：cluster/namespace/name 任一单字段都不具标识性（cluster 全集群共享），组合方可唯一
+		"uid": clusterName + "/" + name,
 	}, now)
 }
 
@@ -192,6 +194,8 @@ func mapWorkload(clusterName, kind, namespace, name string, replicas int32, imag
 		"replicas":  replicas,
 		"image":     image,
 		"labels":    pickLabels(labels, workloadLabelWhitelist),
+		// uid 为调和主键：cluster+namespace+kind+name 四元组合
+		"uid": clusterName + "/" + namespace + "/" + kind + "/" + name,
 	}, now)
 }
 
@@ -200,9 +204,10 @@ func mapService(clusterName string, svc *corev1.Service, now time.Time) record.R
 	return newRecord("k8s_service", map[string]any{
 		"cluster":   clusterName,
 		"namespace": svc.Namespace,
-		"kind":      "Service",
+		"kind":      "service",
+		"uid":       clusterName + "/" + svc.Namespace + "/service/" + svc.Name,
 		"name":      svc.Name,
-		"selector":  svc.Spec.Selector,
+		"selector":  record.FormatTags(svc.Spec.Selector),
 	}, now)
 }
 
@@ -217,7 +222,8 @@ func mapIngress(clusterName string, ing *networkingv1.Ingress, now time.Time) re
 	return newRecord("k8s_service", map[string]any{
 		"cluster":   clusterName,
 		"namespace": ing.Namespace,
-		"kind":      "Ingress",
+		"kind":      "ingress",
+		"uid":       clusterName + "/" + ing.Namespace + "/ingress/" + ing.Name,
 		"name":      ing.Name,
 		"host":      strings.Join(hosts, ","),
 	}, now)

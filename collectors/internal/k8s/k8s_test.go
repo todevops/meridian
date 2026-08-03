@@ -282,15 +282,14 @@ func TestCollectServices(t *testing.T) {
 		byName[s["name"].(string)] = s
 	}
 	svc := byName["pay-api"]
-	if svc == nil || svc["kind"] != "Service" || svc["namespace"] != "pay-app" {
+	if svc == nil || svc["kind"] != "service" || svc["namespace"] != "pay-app" {
 		t.Fatalf("Service 映射不符: %+v", svc)
 	}
-	sel, ok := svc["selector"].(map[string]string)
-	if !ok || sel["app"] != "pay-api" {
+	if svc["selector"] != "app=pay-api" {
 		t.Errorf("Service selector 不符: %+v", svc["selector"])
 	}
 	ing := byName["pay-ingress"]
-	if ing == nil || ing["kind"] != "Ingress" {
+	if ing == nil || ing["kind"] != "ingress" {
 		t.Fatalf("Ingress 映射不符: %+v", ing)
 	}
 	if ing["host"] != "pay.example.com,api.pay.example.com" {

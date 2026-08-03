@@ -6,9 +6,11 @@
     { "code": "serial_no", "name": "序列号", "type": "string", "unique": true, "source": "snmp" },
     { "code": "model", "name": "型号", "type": "string", "source": "snmp" },
     { "code": "vendor", "name": "厂商", "type": "string", "source": "snmp" },
+    { "code": "name", "name": "设备名称", "type": "string", "required": true, "source": "snmp" },
     { "code": "mgmt_ip", "name": "管理 IP", "type": "ip", "required": true, "source": "snmp" }
   ],
   "relations": [
-    { "code": "located_in", "name": "所在机柜", "target_model": "rack", "cardinality": "one_to_one", "direction": "outgoing" }
+    { "code": "located_in", "name": "所在机柜", "target_model": "rack", "cardinality": "one_to_one", "direction": "outgoing" },
+    { "code": "connected_to", "name": "连接至", "target_model": "network_device", "cardinality": "many_to_many", "direction": "outgoing" }
   ]
 }

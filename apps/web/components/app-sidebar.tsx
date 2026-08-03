@@ -4,7 +4,8 @@
 // 组折叠状态记忆于 localStorage；发现池待处理数、未确认告警数、整改待办数三路徽标轮询（60s）；
 // 菜单项按 GET /auth/me 权限点过滤；底部为当前用户与退出登录。
 // 支持拖拽右缘调整宽度（176–384px，localStorage 记忆），并可整体收纳为图标栏：
-// 收纳后仅显示图标（悬停 title 提示、徽标退化为圆点），顶部标题替换为方形 Logo，点击 Logo 或底部按钮恢复。
+// 收纳后仅显示图标（悬停 title 提示、徽标退化为圆点），顶部标题替换为方形 Logo；
+// 展开/收纳由右缘中点的悬浮圆形按钮统一切换（位置不随状态变化），点击 Logo 也可恢复。
 // 登录页不渲染侧边栏。
 
 import { useCallback, useEffect, useState, type PointerEvent as ReactPointerEvent } from "react"
@@ -12,9 +13,9 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
   ChevronRight as ChevronRightIcon,
+  ChevronsLeft as ChevronsLeftIcon,
+  ChevronsRight as ChevronsRightIcon,
   LogOut as LogOutIcon,
-  PanelLeftClose as PanelLeftCloseIcon,
-  PanelLeftOpen as PanelLeftOpenIcon,
   UserRound as UserRoundIcon,
 } from "lucide-react"
 
@@ -262,6 +263,20 @@ export function AppSidebar() {
         !dragging && "transition-[width] duration-200"
       )}
     >
+      {/* 展开/收纳切换：悬浮在右缘中点，位置不随状态变化 */}
+      <button
+        type="button"
+        onClick={() => setRailMode(!rail)}
+        title={rail ? "展开导航" : "收起导航"}
+        className="absolute top-1/2 -right-4 z-20 flex size-6 -translate-y-1/2 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-sm transition-colors hover:text-foreground"
+      >
+        {rail ? (
+          <ChevronsRightIcon className="size-3.5" />
+        ) : (
+          <ChevronsLeftIcon className="size-3.5" />
+        )}
+      </button>
+
       {/* 宽度拖拽手柄：仅展开态可用 */}
       {!rail && (
         <div
@@ -289,23 +304,13 @@ export function AppSidebar() {
             <LogoMark className="size-7" />
           </button>
         ) : (
-          <>
-            <Link
-              href="/"
-              className="flex min-w-0 items-center gap-2 text-sm font-semibold tracking-tight"
-            >
-              <LogoMark className="size-5 shrink-0" />
-              <span className="truncate">Meridian 配置管理中心</span>
-            </Link>
-            <button
-              type="button"
-              onClick={() => setRailMode(true)}
-              title="收起导航"
-              className="ml-auto rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
-            >
-              <PanelLeftCloseIcon className="size-4" />
-            </button>
-          </>
+          <Link
+            href="/"
+            className="flex min-w-0 items-center gap-2 text-sm font-semibold tracking-tight"
+          >
+            <LogoMark className="size-5 shrink-0" />
+            <span className="truncate">Meridian 配置管理中心</span>
+          </Link>
         )}
       </div>
 
@@ -380,16 +385,6 @@ export function AppSidebar() {
             </div>
           )
         })}
-        {rail && (
-          <button
-            type="button"
-            onClick={() => setRailMode(false)}
-            title="展开导航"
-            className="mx-auto mt-auto rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
-          >
-            <PanelLeftOpenIcon className="size-4" />
-          </button>
-        )}
       </nav>
       {user && (
         <div

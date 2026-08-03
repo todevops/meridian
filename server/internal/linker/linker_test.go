@@ -332,3 +332,117 @@ func TestLinkEsxiHostClusterDirect(t *testing.T) {
 		t.Fatalf("主机应按自身 parent_cluster_moid 挂接集群，实际 %d", n)
 	}
 }
+
+// setupK8s 预置 biz_app/k8s_namespace/k8s_workload 模型（关系定义对齐种子）。
+func setupK8s(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	models := []store.Model{
+		{Name: "业务应用", Code: "biz_app"},
+		{
+			Name: "K8s 命名空间", Code: "k8s_namespace",
+			Relations: datatypes.NewJSONType([]store.RelationDefinition{
+				{Name: "挂载到应用", Code: "mounted_to", TargetModel: "biz_app", Cardinality: "one_to_one", Direction: "outgoing"},
+			}),
+		},
+		{
+			Name: "K8s 工作负载", Code: "k8s_workload",
+			Relations: datatypes.NewJSONType([]store.RelationDefinition{
+				{Name: "归属应用", Code: "belongs_to", TargetModel: "biz_app", Cardinality: "one_to_one", Direction: "outgoing"},
+				{Name: "归属命名空间", Code: "in_namespace", TargetModel: "k8s_namespace", Cardinality: "one_to_one", Direction: "outgoing"},
+			}),
+		},
+	}
+	for i := range models {
+		if err := db.Create(&models[i]).Error; err != nil {
+			t.Fatalf("创建模型 %s 失败: %v", models[i].Code, err)
+		}
+	}
+}
+
+// TestK8sNamespaceInheritance 验证整挂继承：命名空间挂载应用后，
+// 名下工作负载自动获得 in_namespace 与 belongs_to 归属（双向触发均覆盖）。
+func TestK8sNamespaceInheritance(t *testing.T) {
+	db := setup(t)
+	setupK8s(t, db)
+	app := mustCI(t, db, "biz_app", map[string]any{"code": "mall-front", "name": "电商前台"})
+	ns := mustCI(t, db, "k8s_namespace", map[string]any{"cluster": "volc-prod-k8s", "name": "mall"})
+	wl := mustCI(t, db, "k8s_workload", map[string]any{"cluster": "volc-prod-k8s", "namespace": "mall", "kind": "Deployment", "name": "web"})
+	// 人工挂载命名空间到应用（source=manual）。
+	if err := db.Create(&store.CIRelation{
+		RelationCode: "mounted_to", SrcCIID: ns.ID, DstCIID: app.ID, Source: store.RelationSourceManual,
+	}).Error; err != nil {
+		t.Fatalf("创建 mounted_to 关系失败: %v", err)
+	}
+
+	l := New(db)
+	// 工作负载侧触发：挂命名空间 + 继承归属。
+	if err := l.Handle(context.Background(), wl.ID, "create"); err != nil {
+		t.Fatalf("工作负载侧关联失败: %v", err)
+	}
+	if n := countRelations(t, db, "in_namespace", wl.ID, ns.ID); n != 1 {
+		t.Fatalf("应有 in_namespace 关系，实际 %d", n)
+	}
+	if n := countRelations(t, db, "belongs_to", wl.ID, app.ID); n != 1 {
+		t.Fatalf("应继承 belongs_to 归属，实际 %d", n)
+	}
+
+	// 命名空间侧触发（传播入口，等价于人工建 mounted_to 后 API 调用）：
+	// 后建档的工作负载同样补齐。
+	wl2 := mustCI(t, db, "k8s_workload", map[string]any{"cluster": "volc-prod-k8s", "namespace": "mall", "kind": "StatefulSet", "name": "db"})
+	if err := l.PropagateNamespaceMount(context.Background(), ns.ID); err != nil {
+		t.Fatalf("命名空间归属传播失败: %v", err)
+	}
+	if n := countRelations(t, db, "in_namespace", wl2.ID, ns.ID); n != 1 {
+		t.Fatalf("传播应补 in_namespace，实际 %d", n)
+	}
+	if n := countRelations(t, db, "belongs_to", wl2.ID, app.ID); n != 1 {
+		t.Fatalf("传播应补 belongs_to，实际 %d", n)
+	}
+	// 幂等：重复传播不产生重复关系。
+	if err := l.PropagateNamespaceMount(context.Background(), ns.ID); err != nil {
+		t.Fatalf("重复传播失败: %v", err)
+	}
+	if n := countRelations(t, db, "belongs_to", wl.ID, ""); n != 1 {
+		t.Fatalf("重复传播不应产生重复归属，实际 %d", n)
+	}
+}
+
+// TestK8sNamespaceRemount 验证改挂：命名空间改挂其它应用时，
+// 自动 belongs_to 被替换，人工 belongs_to 不动。
+func TestK8sNamespaceRemount(t *testing.T) {
+	db := setup(t)
+	setupK8s(t, db)
+	app1 := mustCI(t, db, "biz_app", map[string]any{"code": "mall-front", "name": "电商前台"})
+	app2 := mustCI(t, db, "biz_app", map[string]any{"code": "mall-order", "name": "订单中台"})
+	ns := mustCI(t, db, "k8s_namespace", map[string]any{"cluster": "volc-prod-k8s", "name": "mall"})
+	wlAuto := mustCI(t, db, "k8s_workload", map[string]any{"cluster": "volc-prod-k8s", "namespace": "mall", "kind": "Deployment", "name": "web"})
+	wlManual := mustCI(t, db, "k8s_workload", map[string]any{"cluster": "volc-prod-k8s", "namespace": "mall", "kind": "Deployment", "name": "cms"})
+	db.Create(&store.CIRelation{RelationCode: "mounted_to", SrcCIID: ns.ID, DstCIID: app1.ID, Source: store.RelationSourceManual})
+
+	l := New(db)
+	if err := l.PropagateNamespaceMount(context.Background(), ns.ID); err != nil {
+		t.Fatalf("传播失败: %v", err)
+	}
+	if n := countRelations(t, db, "belongs_to", wlAuto.ID, app1.ID); n != 1 {
+		t.Fatalf("初始归属应为 app1，实际 %d", n)
+	}
+	// wlManual 由人工指定归属 app1（manual），改挂后不得被替换。
+	db.Where("relation_code = ? AND src_ci_id = ?", "belongs_to", wlManual.ID).Delete(&store.CIRelation{})
+	db.Create(&store.CIRelation{RelationCode: "belongs_to", SrcCIID: wlManual.ID, DstCIID: app1.ID, Source: store.RelationSourceManual})
+
+	// 改挂 app2。
+	db.Where("relation_code = ? AND src_ci_id = ?", "mounted_to", ns.ID).Delete(&store.CIRelation{})
+	db.Create(&store.CIRelation{RelationCode: "mounted_to", SrcCIID: ns.ID, DstCIID: app2.ID, Source: store.RelationSourceManual})
+	if err := l.PropagateNamespaceMount(context.Background(), ns.ID); err != nil {
+		t.Fatalf("改挂传播失败: %v", err)
+	}
+	if n := countRelations(t, db, "belongs_to", wlAuto.ID, app2.ID); n != 1 {
+		t.Fatalf("改挂后自动归属应指向 app2，实际 %d", n)
+	}
+	if n := countRelations(t, db, "belongs_to", wlAuto.ID, app1.ID); n != 0 {
+		t.Fatalf("旧自动归属应被替换，实际 %d", n)
+	}
+	if n := countRelations(t, db, "belongs_to", wlManual.ID, app1.ID); n != 1 {
+		t.Fatalf("人工归属不得被替换，实际 %d", n)
+	}
+}
