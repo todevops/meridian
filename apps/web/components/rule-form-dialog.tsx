@@ -34,11 +34,13 @@ import {
   listModels,
   patchGovernanceRule,
   type GovernanceRule,
+  type GovernanceRuleType,
   type Model,
 } from "@/lib/api"
 
 const formSchema = z.object({
   name: z.string().trim().min(1, "请输入规则名称"),
+  type: z.enum(["audit", "auto_ingest"]),
   model_code: z.string().trim().min(1, "请选择目标模型"),
   filter: z.string().trim(),
   assertion: z.string().trim().min(1, "请输入断言表达式"),
@@ -71,6 +73,7 @@ export function RuleFormDialog({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
+      type: "audit",
       model_code: "",
       filter: "",
       assertion: "",
@@ -88,6 +91,8 @@ export function RuleFormDialog({
       rule
         ? {
             name: rule.name,
+            // 旧数据无 type 字段时按稽核回填
+            type: rule.type ?? "audit",
             model_code: rule.model_code,
             filter: rule.filter,
             assertion: rule.assertion,
@@ -97,6 +102,7 @@ export function RuleFormDialog({
           }
         : {
             name: "",
+            type: "audit",
             model_code: "",
             filter: "",
             assertion: "",
@@ -114,7 +120,9 @@ export function RuleFormDialog({
     setSubmitError(null)
     try {
       if (isEdit) {
-        await patchGovernanceRule(rule.id, values)
+        // 类型创建后不可修改，编辑时不下发 type
+        const { type: _type, ...rest } = values
+        await patchGovernanceRule(rule.id, rest)
       } else {
         await createGovernanceRule(values)
       }
@@ -179,6 +187,47 @@ export function RuleFormDialog({
               {errors.model_code?.message && (
                 <p className="text-xs text-destructive">{errors.model_code.message}</p>
               )}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>
+                规则类型<span className="text-destructive">*</span>
+              </Label>
+              <Controller
+                control={form.control}
+                name="type"
+                render={({ field }) => (
+                  <Select
+                    value={field.value}
+                    onValueChange={(v) =>
+                      v && field.onChange(v as GovernanceRuleType)
+                    }
+                    disabled={isEdit}
+                  >
+                    <SelectTrigger>
+                      <SelectValue>
+                        {(v: GovernanceRuleType) =>
+                          v === "auto_ingest" ? "自动入库白名单" : "稽核"
+                        }
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="audit">稽核</SelectItem>
+                      <SelectItem value="auto_ingest">
+                        自动入库白名单
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {isEdit ? (
+                <p className="text-xs text-muted-foreground">
+                  规则类型创建后不可修改
+                </p>
+              ) : form.watch("type") === "auto_ingest" ? (
+                <p className="text-xs text-muted-foreground">
+                  仅对判定为新建的记录直接建档，update/conflict 不受影响
+                </p>
+              ) : null}
             </div>
           </div>
 

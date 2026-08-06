@@ -25,6 +25,8 @@
 //	K8S_KUBECONFIG      kubeconfig 文件路径（设置后优先于 url+token）
 //	NMAP_FROM_FILE      nmap -oX 结果文件（设置后 ipscan 不再现扫）
 //	NMAP_SCAN_TARGET    ipscan 现扫网段（如 192.168.1.0/24）
+//	DBPROBE_CRED_FILE     dbprobe 本地凭据文件（JSON，0600；必填，不在 all 内）
+//	DBPROBE_FIXTURE_FILE  dbprobe fixture 应答文件（设置后不发起真实数据库连接）
 //	VSPHERE_URL         vCenter SDK（默认 :19007，简写自动补 https:// 与 /sdk）
 //	VSPHERE_USERNAME    vCenter 用户名（vcsim 默认 user）
 //	VSPHERE_PASSWORD    vCenter 密码（vcsim 默认 pass）
@@ -47,6 +49,7 @@ import (
 
 	"collectors/internal/aliyun"
 	"collectors/internal/dbdiscover"
+	"collectors/internal/dbprobe"
 	"collectors/internal/ipscan"
 	"collectors/internal/k8s"
 	"collectors/internal/librenms"
@@ -61,7 +64,7 @@ var allCollectors = []string{"aliyun", "volc", "dbdiscover", "librenms", "ipscan
 
 func main() {
 	var (
-		collectorFlag = flag.String("collector", "all", "采集器：aliyun|volc|dbdiscover|librenms|ipscan|vsphere|k8s|all（支持逗号分隔多选）")
+		collectorFlag = flag.String("collector", "all", "采集器：aliyun|volc|dbdiscover|librenms|ipscan|vsphere|k8s|dbprobe|all（支持逗号分隔多选；dbprobe 需显式指定，不在 all 内）")
 		dryRun        = flag.Bool("dry-run", false, "只打印发现记录，不上报 CMDB、不变更模型")
 	)
 	flag.Parse()
@@ -144,7 +147,22 @@ func build(name, cmdbAPI, authToken string, dryRun bool) (runner.Collector, erro
 			record.Getenv("K8S_TOKEN", "dev-k8s-token"),
 			record.Getenv("K8S_CLUSTER_NAME", "volc-prod-k8s"),
 			record.Getenv("K8S_KUBECONFIG", ""), insecure)
+	case "dbprobe":
+		credFile := record.Getenv("DBPROBE_CRED_FILE", "")
+		if credFile == "" {
+			return nil, fmt.Errorf("dbprobe 需要 DBPROBE_CRED_FILE（本地凭据文件，0600）")
+		}
+		c := dbprobe.New(cmdbAPI, authToken, credFile, dryRun, log.Printf)
+		if fx := record.Getenv("DBPROBE_FIXTURE_FILE", ""); fx != "" {
+			store, err := dbprobe.LoadFixture(fx)
+			if err != nil {
+				return nil, fmt.Errorf("加载 dbprobe fixture 失败: %w", err)
+			}
+			c.UseFixture(store)
+			log.Printf("dbprobe fixture 模式：%s（不发起真实数据库连接）", fx)
+		}
+		return c, nil
 	default:
-		return nil, fmt.Errorf("未知采集器 %q（可选 aliyun|volc|dbdiscover|librenms|ipscan|vsphere|k8s|all）", name)
+		return nil, fmt.Errorf("未知采集器 %q（可选 aliyun|volc|dbdiscover|librenms|ipscan|vsphere|k8s|dbprobe|all）", name)
 	}
 }

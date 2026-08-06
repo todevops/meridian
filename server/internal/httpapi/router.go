@@ -17,6 +17,7 @@ import (
 	"meridian/server/internal/ipam"
 	"meridian/server/internal/n9e"
 	"meridian/server/internal/scheduler"
+	"meridian/server/internal/scope"
 	"meridian/server/internal/umodelgen"
 )
 
@@ -47,6 +48,8 @@ type Server struct {
 	oxidizedToken string
 	// umodelGen 为 UModel 生成器（F-073，可空：未启用时 stats 接口返回 503）。
 	umodelGen *umodelgen.Generator
+	// scope 为数据范围解析器（F-005）：查询层按归属闭包裁剪 CI 可见性。
+	scope *scope.Resolver
 }
 
 // NewRouter 构建完整路由（健康检查 + /api/v1 业务接口）。
@@ -64,6 +67,7 @@ func NewRouter(db *gorm.DB, pipeline *discovery.Pipeline, authSvc *auth.Service,
 		n9eClient:     n9eClient,
 		oxidizedToken: defaultStringEnv("OXIDIZED_WEBHOOK_TOKEN", "dev-oxidized-token"),
 		umodelGen:     umodelGen,
+		scope:         scope.New(db),
 	}
 
 	r := gin.Default()
@@ -186,6 +190,9 @@ func NewRouter(db *gorm.DB, pipeline *discovery.Pipeline, authSvc *auth.Service,
 		authed.POST("/governance/rules/:id/run", s.require("governance:write"), s.runAuditRule)
 		authed.GET("/governance/todos", s.require("governance:read"), s.listGovernanceTodos)
 		authed.POST("/governance/todos/:id/close", s.require("governance:write"), s.closeGovernanceTodo)
+
+		// DBMS 治理（US-3.3）：EOL 清单导出（JSON/CSV）。
+		authed.GET("/dbms/eol-report", s.require("ci:read"), s.getDBMSEOLReport)
 
 		// 生命周期（F-026）：状态流转、退役会签与联动执行。
 		authed.POST("/cis/:ci_id/lifecycle", s.require("lifecycle:write"), s.transitionCI)

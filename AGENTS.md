@@ -25,9 +25,9 @@ cmdb/
 │   ├── eslint-config/   # 共享 ESLint 配置（@workspace/eslint-config）
 │   └── typescript-config/ # 共享 tsconfig（@workspace/typescript-config）
 ├── server/              # Go 后端 API（module meridian/server，Gin + GORM + Casbin）
-├── collectors/          # 五款数据源采集器（纯 Go 标准库，无外部依赖）
+├── collectors/          # 八款数据源采集器（aliyun/volc/dbdiscover/librenms/ipscan/vsphere/k8s/dbprobe；go-redis/mysql/govmomi/client-go 依赖按需引入）
 ├── migrator/            # NetBox → Meridian 一次性迁移工具
-├── mocks/               # 官方接口 mock 平台（单二进制 mockd，6 个 mock 系统）
+├── mocks/               # 官方接口 mock 平台（单二进制 mockd，11 个 mock 系统 :19001-:19011）
 ├── pkg/openapi/         # 前后端共享契约（OpenAPI 3.0.3，见 pkg/README.md）
 ├── scripts/             # demo.sh / seed-models.sh / auth-login.sh 及种子与样例数据
 ├── docker-compose.yml   # 本地开发依赖：PostgreSQL 16 / Redis 7 / NATS JetStream
@@ -79,7 +79,7 @@ cd migrator && go run ./cmd/migrate        # NetBox → CMDB 迁移，需 NETBOX
 
 ```bash
 bash scripts/demo.sh          # 无需 Docker：SQLite 临时库 + 种子模型 + 样例发现记录，结束自动清理
-bash scripts/seed-models.sh   # 向运行中的 server（默认 :8080）导入 13 个种子模型（定义见 scripts/seed/）
+bash scripts/seed-models.sh   # 向运行中的 server（默认 :8080）导入 18 个种子模型（定义见 scripts/seed/）
 ```
 
 脚本统一先经 `scripts/auth-login.sh` 登录；可用 `MERIDIAN_AUTH_USER` / `MERIDIAN_AUTH_PASSWORD` 覆盖账号。
@@ -88,7 +88,8 @@ bash scripts/seed-models.sh   # 向运行中的 server（默认 :8080）导入 1
 
 ### server/internal（后端）
 
-- `httpapi/` — Gin 路由与 handler：`models`（模型）、`cis`（CI 实例）、`relations`、`discovery`（发现记录）、`pool`（发现池）、`ipam`、`dcim`、`search`（全局搜索）、`users`/`roles`/`auth`（认证与 RBAC）、`oxidized`（集成输出）。
+- `httpapi/` — Gin 路由与 handler：`models`（模型）、`cis`（CI 实例）、`relations`、`discovery`（发现记录）、`pool`（发现池）、`ipam`、`dcim`、`search`（全局搜索）、`users`/`roles`/`auth`（认证与 RBAC）、`governance`（稽核规则 + auto_ingest 白名单）、`dbms`（EOL 导出）、`oxidized`（集成输出）。
+- `scope/` — 数据范围权限（F-005）：按用户 scope_app_ids 预计算归属应用资产闭包（关系双向一跳 + 命名空间两跳，10s 短缓存），查询层收口裁剪 CI 列表/详情/关系/搜索。
 - `auth/` — JWT（httpOnly cookie `meridian_token` 或 Bearer）+ Casbin RBAC；权限点为代码内固定目录 `auth/catalog.go`，策略经 gorm-adapter 持久化到 `casbin_rule` 表。
 - `reconcile/` — 调和引擎：发现记录 → CI，支持撞键检测、冲突入池、增量更新。
 - `discovery/`、`n9e/`（n9e 消费器）、`stream/`（NATS JetStream，不可达时自动跳过订阅）、`ipam/`、`dcim/`、`store/`、`db/`（GORM，PostgreSQL 或 glebarez/sqlite）、`validation/`、`config/`（全部配置来自环境变量）。
@@ -133,7 +134,7 @@ pnpm dlx js-yaml pkg/openapi/ipam-dcim.yaml
 ## 认证、RBAC 与安全注意事项
 
 - 除 `/healthz`、`/readyz`、`/api/v1/auth/login` 外，所有 `/api/v1` 接口需登录并按权限点鉴权。
-- 内置账号（首次启动种子）：`admin`（默认初始密码 `admin123`，环境变量 `ADMIN_INITIAL_PASSWORD` 可改）、`collector`（默认 `collector123`，仅供采集器上报，权限点 `discovery:write`）。内置角色 admin/operator/viewer/collector 不可删除，admin 角色权限点不可修改。
+- 内置账号（首次启动种子）：`admin`（默认初始密码 `admin123`，环境变量 `ADMIN_INITIAL_PASSWORD` 可改）、`collector`（默认 `collector123`，仅供采集器上报，权限点 `discovery:write`）。内置角色 admin/operator/viewer/collector/system_owner 不可删除，admin 角色权限点不可修改。system_owner（系统负责人，F-005）为全量只读权限点角色，须配合用户 `scope_app_ids` 数据范围使用。
 - `JWT_SECRET` 生产环境**必须显式配置**（缺省为固定开发值并打印警告）；会话有效期 `TOKEN_TTL_HOURS` 默认 24 小时。
 - 密码以 bcrypt 哈希存储；token 经 httpOnly cookie 或 Bearer 携带。
 - `.env` 含数据库口令等敏感信息，已在 `.gitignore`，不要提交；docker-compose 中的 `cmdb_dev_password` 仅为本地开发口令。

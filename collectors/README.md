@@ -1,7 +1,7 @@
 # collectors — Meridian 自研采集器
 
-七款数据源采集器，拉取源端清单映射为标准发现记录（契约 `DiscoveryRecord`，见 `pkg/openapi/openapi.yaml`），
-批量 `POST {MERIDIAN_API_URL}/api/v1/discovery-records`。vsphere 采集器依赖 govmomi，k8s 采集器依赖 client-go rest（仅用 RESTClient list，无 informer），其余为纯 Go 标准库实现。
+八款数据源采集器，拉取源端清单映射为标准发现记录（契约 `DiscoveryRecord`，见 `pkg/openapi/openapi.yaml`），
+批量 `POST {MERIDIAN_API_URL}/api/v1/discovery-records`。vsphere 采集器依赖 govmomi，k8s 采集器依赖 client-go rest（仅用 RESTClient list，无 informer），dbprobe 依赖 go-sql-driver/mysql 与 go-redis（实例直连），其余为纯 Go 标准库实现。
 
 ## 构建与运行
 
@@ -26,6 +26,7 @@ go test ./...                              # 单测（httptest 夹具 + 内嵌 n
 | ipscan | nmap | `NMAP_FROM_FILE` 文件 或 `exec nmap -sn -oX - {NMAP_SCAN_TARGET}` | host | ip, mac, black_device_risk（仅未登记存活）, last_seen_alive（取扫描时间） |
 | vsphere | vCenter（govmomi） | `{VSPHERE_URL}/sdk` | esxi_cluster / esxi_host / virtual_machine | 见下 |
 | k8s | K8s apiserver（client-go rest） | `/version` + list nodes/namespaces/services/deployments/statefulsets/daemonsets/ingresses（Bearer Token 或 kubeconfig） | k8s_cluster / host / k8s_namespace / k8s_workload / k8s_service | 见下 |
+| dbprobe | mysql/redis 实例直连（只读账号） | `GET {MERIDIAN_API_URL}/api/v1/cis?model_id=db_instance` 取清单 + `DBPROBE_CRED_FILE` 凭据直连 | db_instance | version, role, master_addr, cluster_name, cluster_mates, schema_count, source=dbprobe；不在 `all` 内需显式指定 |
 
 ### k8s 说明
 
@@ -45,6 +46,20 @@ go test ./...                              # 单测（httptest 夹具 + 内嵌 n
 启动时 `GET /api/v1/models?keyword=db_instance`，若模型 `reconcile_keys != ["type","ip","port"]` 则
 `PATCH /api/v1/models/{id}` 修正；模型不存在（应由种子数据创建）只告警不失败。
 dry-run 模式下只打印意图不变更，CMDB 不可达降级为告警。
+
+### dbprobe 说明（4A 实例直连补采）
+
+- 实例清单：`GET /api/v1/cis?model_id=db_instance` 分页拉取（剔除 retired）；凭据来自 `DBPROBE_CRED_FILE` 本地 JSON（`[{instance_addr,type,username,password}]`，非 Windows 平台强制 0600 权限，口令仅驻留内存、日志禁打明文）。
+- mysql（go-sql-driver）：`SELECT VERSION()` + `SHOW REPLICA STATUS`（8.0.22 前回退 `SHOW SLAVE STATUS`）+ `information_schema.SCHEMATA` 库清单（schema_count 排除系统库）；redis（go-redis）：`INFO server`/`INFO replication`。
+- 拓扑归组：从库角色由复制行确定，被从库指认（或 redis 自报 connected_slaves>0）的为 master，其余 standalone；集群以主库地址命名（cluster_name=主库地址），组内 ≥2 地址时互填 cluster_mates（含未纳管主库地址）。
+- 单实例连接/查询失败记日志不中断整体采集；无匹配凭据跳过；dry-run 且 CMDB 不可达时回退以凭据文件条目为实例清单。
+- fixture 演示（无库环境）：`DBPROBE_FIXTURE_FILE` 指向预置查询应答 JSON（顶层键=实例地址，SQL 应答 `{columns,rows}`、redis 应答为 INFO 原始字符串，键 `INFO <section>`），不发起任何真实数据库连接。样例见 `testdata/dbprobe-creds.json` / `testdata/dbprobe-fixture.json`：
+
+```bash
+DBPROBE_CRED_FILE=./testdata/dbprobe-creds.json \
+DBPROBE_FIXTURE_FILE=./testdata/dbprobe-fixture.json \
+go run ./cmd/collector -collector=dbprobe -dry-run
+```
 
 ### ipscan 说明
 
@@ -66,6 +81,8 @@ dry-run 模式下只打印意图不变更，CMDB 不可达降级为告警。
 | `LIBRENMS_API_TOKEN` | 无（必填） | LibreNMS X-Auth-Token，对接 mock 时任意非空值 |
 | `NMAP_FROM_FILE` | 空 | nmap -oX 结果文件路径 |
 | `NMAP_SCAN_TARGET` | 空 | ipscan 现扫网段，如 `192.168.1.0/24` |
+| `DBPROBE_CRED_FILE` | 无（dbprobe 必填） | dbprobe 本地凭据文件（JSON，非 Windows 须 0600） |
+| `DBPROBE_FIXTURE_FILE` | 空 | dbprobe fixture 应答文件（设置后不发起真实数据库连接） |
 | `VSPHERE_URL` | `:19007` | vCenter SDK 地址（简写自动补 `https://` 与 `/sdk`；vcsim 为 http 时写完整 URL） |
 | `VSPHERE_USERNAME` / `VSPHERE_PASSWORD` | 空 | vCenter 账密（vcsim 默认 user/pass） |
 | `VSPHERE_INSECURE` | `true` | 跳过 TLS 证书校验 |

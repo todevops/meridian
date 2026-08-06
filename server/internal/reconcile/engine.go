@@ -28,6 +28,7 @@ import (
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
+	"meridian/server/internal/auditrules"
 	"meridian/server/internal/ipam"
 	"meridian/server/internal/store"
 	"meridian/server/internal/validation"
@@ -299,6 +300,20 @@ func (e *Engine) createCI(ctx context.Context, rec Record, model store.Model, ke
 		Action:  ActionCreate,
 		Reasons: []string{fmt.Sprintf("未命中调和键 %v，新建 CI 入发现池（status=discovered）", keys)},
 	}
+
+	// F-034 自动入库白名单：模型+属性命中某条启用的 auto_ingest 规则时，
+	// 跳过发现池直接建档 status=active，审计来源标 auto_ingest。
+	// 仅 create 分支生效（update/conflict 语义不变）；dry_run 规则只出报告不参与放行。
+	status, auditSource, auditMessage := "discovered", rec.Source, "调和新建 CI 入发现池"
+	ruleName, whitelisted, err := auditrules.MatchAutoIngest(ctx, e.db, model, rec.Attributes)
+	if err != nil {
+		return Decision{}, err
+	}
+	if whitelisted {
+		status, auditSource = "active", "auto_ingest"
+		auditMessage = fmt.Sprintf("命中白名单规则 %q，自动建档", ruleName)
+		d.Reasons = []string{fmt.Sprintf("未命中调和键 %v；命中自动入库白名单规则 %q，直接建档（status=active）", keys, ruleName)}
+	}
 	if dryRun {
 		return d, nil
 	}
@@ -307,14 +322,14 @@ func (e *Engine) createCI(ctx context.Context, rec Record, model store.Model, ke
 		ModelID:      model.ID,
 		Attributes:   datatypes.JSONMap(rec.Attributes),
 		FieldSources: fieldSourcesFor(rec.Attributes, rec.Source),
-		Status:       "discovered",
+		Status:       status,
 		Source:       rec.Source,
 	}
 	changes := map[string]Change{}
 	for k, v := range rec.Attributes {
 		changes[k] = Change{Old: nil, New: v}
 	}
-	err := e.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = e.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&ci).Error; err != nil {
 			return fmt.Errorf("创建 CI 失败: %w", err)
 		}
@@ -329,7 +344,7 @@ func (e *Engine) createCI(ctx context.Context, rec Record, model store.Model, ke
 				return err
 			}
 		}
-		return writeAudit(tx, ci.ID, "create", rec.Source, changes, "调和新建 CI 入发现池")
+		return writeAudit(tx, ci.ID, "create", auditSource, changes, auditMessage)
 	})
 	if err != nil {
 		return Decision{}, err

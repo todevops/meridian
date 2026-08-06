@@ -146,10 +146,11 @@ func (e *Engine) reconcileTodos(ctx context.Context, rule store.AuditRule, viola
 	return created, closed, nil
 }
 
-// RunAll 执行全部 enabled 规则（每日定时通道）。
+// RunAll 执行全部 enabled 的稽核规则（每日定时通道）；
+// auto_ingest 白名单规则不参与稽核待办闭环，仅由调和引擎在 create 分支消费。
 func (e *Engine) RunAll(ctx context.Context) ([]RunResult, error) {
 	var rules []store.AuditRule
-	if err := e.db.WithContext(ctx).Where("enabled = ?", true).Find(&rules).Error; err != nil {
+	if err := e.db.WithContext(ctx).Where("enabled = ? AND type = ?", true, store.AuditRuleTypeAudit).Find(&rules).Error; err != nil {
 		return nil, fmt.Errorf("查询稽核规则失败: %w", err)
 	}
 	results := make([]RunResult, 0, len(rules))
@@ -190,6 +191,39 @@ func (e *Engine) RunDailyLoop(ctx context.Context) {
 			run()
 		}
 	}
+}
+
+// MatchAutoIngest 判定发现记录是否命中某条启用的自动入库白名单规则（F-034）：
+// type=auto_ingest 且 enabled 且非 dry_run、model_code 匹配的规则，
+// 按 filter 属性等值 + assertion 断言（复用稽核 DSL）对记录属性求值。
+// 命中返回规则名；断言解析失败跳过该规则（创建时已校验，防御性容错）。
+func MatchAutoIngest(ctx context.Context, db *gorm.DB, model store.Model, attrs map[string]any) (ruleName string, hit bool, err error) {
+	var rules []store.AuditRule
+	if err := db.WithContext(ctx).
+		Where("type = ? AND enabled = ? AND dry_run = ? AND model_code = ?",
+			store.AuditRuleTypeAutoIngest, true, false, model.Code).
+		Order("created_at ASC").Find(&rules).Error; err != nil {
+		return "", false, fmt.Errorf("查询白名单规则失败: %w", err)
+	}
+	for _, rule := range rules {
+		ast, perr := parseExpr(rule.Assertion)
+		if perr != nil {
+			continue
+		}
+		ci := store.CI{ModelID: model.ID, Attributes: datatypes.JSONMap(attrs)}
+		if !matchFilter(rule.Filter, ci) {
+			continue
+		}
+		ec := &evalCtx{db: db.WithContext(ctx), ci: ci, modelCode: map[string]string{}, now: time.Now()}
+		ok, terr := ec.truth(ast)
+		if terr != nil {
+			return "", false, fmt.Errorf("白名单规则 %q 求值失败: %w", rule.Name, terr)
+		}
+		if ok {
+			return rule.Name, true, nil
+		}
+	}
+	return "", false, nil
 }
 
 // matchFilter 按属性等值条件过滤 CI。

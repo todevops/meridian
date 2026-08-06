@@ -113,6 +113,13 @@ export default function RolesPage() {
         </div>
       )}
 
+      {/* 数据范围说明：system_owner 为强制范围角色（阶段四 4A，F-005） */}
+      <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+        内置角色 <span className="font-medium text-foreground">系统负责人（system_owner）</span>
+        为强制数据范围角色：该角色用户仅可见「用户管理」页为其绑定的业务应用及其关联资产；未绑定应用时无任何业务数据可见。
+        其余角色不受数据范围裁剪，默认全量可见。
+      </div>
+
       <div className="rounded-lg border">
         <Table>
           <TableHeader>
@@ -143,6 +150,11 @@ export default function RolesPage() {
                     {role.is_builtin && (
                       <Badge variant="outline" className="ml-2">
                         内置
+                      </Badge>
+                    )}
+                    {role.code === "system_owner" && (
+                      <Badge variant="secondary" className="ml-2">
+                        强制范围
                       </Badge>
                     )}
                   </TableCell>

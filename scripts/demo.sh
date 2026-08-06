@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 垂直切片一键演示：
-#   启动 server（SQLite 临时库）→ 等待 /healthz 就绪 → 导入 13 个种子模型
+#   启动 server（SQLite 临时库）→ 等待 /healthz 就绪 → 导入 18 个种子模型
 #   → 逐条写入样例发现记录 → 查询主机 CI 清单 → 停止 server 并清理。
 # 前置：已执行 source ../.tools/env.sh（go 与 node 在 PATH 上）。
 set -euo pipefail
@@ -64,7 +64,7 @@ echo "    服务已就绪"
 source "${SCRIPT_DIR}/auth-login.sh"
 meridian_login
 
-echo "==> [3/5] 导入 13 个种子模型"
+echo "==> [3/5] 导入 18 个种子模型"
 BASE_URL="${BASE_URL}" bash "${SCRIPT_DIR}/seed-models.sh"
 
 echo "==> [4/5] 逐条写入样例发现记录"
@@ -99,6 +99,6 @@ echo "    注：调和为异步流程，若 items 为空说明记录仍在队列
 echo
 echo "演示完成："
 echo "  [OK] server 启动并就绪（SQLite）"
-echo "  [OK] 13 个种子模型导入"
+echo "  [OK] 18 个种子模型导入"
 echo "  [OK] 三条样例发现记录写入"
 echo "  [OK] 主机 CI 清单查询"

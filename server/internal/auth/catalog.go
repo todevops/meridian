@@ -109,6 +109,17 @@ func allPermissionCodes() []string {
 	return codes
 }
 
+// allReadPermissionCodes 返回目录内全部只读（*:read）权限点编码。
+func allReadPermissionCodes() []string {
+	codes := []string{}
+	for _, p := range Catalog {
+		if strings.HasSuffix(p.Code, ":read") {
+			codes = append(codes, p.Code)
+		}
+	}
+	return codes
+}
+
 // builtinRoles 是内置角色定义，Seed 时幂等写入。
 var builtinRoles = []builtinRole{
 	{"admin", "管理员", "拥有全部权限", allPermissionCodes()},
@@ -130,6 +141,9 @@ var builtinRoles = []builtinRole{
 	{"collector", "采集器", "仅供采集器服务账号上报发现记录、读取模型定义", []string{
 		PermModelRead, PermDiscoveryWrite,
 	}},
+	// system_owner（F-005）：业务系统负责人——全量只读权限点 + 强制数据范围。
+	// 须配合用户 scope_app_ids 使用：非空时查询层按归属闭包裁剪（见 internal/scope）。
+	{"system_owner", "系统负责人", "业务系统负责人：全量只读权限点，数据范围按归属应用裁剪", allReadPermissionCodes()},
 }
 
 // RoleSubject 返回角色在 Casbin 策略中的主体标识（"role:<code>"）。

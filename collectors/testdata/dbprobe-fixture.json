@@ -1,0 +1,30 @@
+{
+  "10.30.1.11:3306": {
+    "SELECT VERSION()": { "columns": ["VERSION()"], "rows": [["8.0.36"]] },
+    "SHOW REPLICA STATUS": { "columns": ["Source_Host", "Source_Port"], "rows": [] },
+    "SELECT SCHEMA_NAME FROM information_schema.SCHEMATA": {
+      "columns": ["SCHEMA_NAME"],
+      "rows": [["information_schema"], ["mysql"], ["performance_schema"], ["sys"], ["mall_order"], ["mall_pay"], ["mall_stock"], ["mall_user"]]
+    }
+  },
+  "10.66.3.11:3306": {
+    "SELECT VERSION()": { "columns": ["VERSION()"], "rows": [["5.7.44-log"]] },
+    "SHOW REPLICA STATUS": { "columns": ["Source_Host", "Source_Port"], "rows": [] },
+    "SELECT SCHEMA_NAME FROM information_schema.SCHEMATA": {
+      "columns": ["SCHEMA_NAME"],
+      "rows": [["information_schema"], ["mysql"], ["performance_schema"], ["sys"], ["orders"], ["pay"], ["trade_center"]]
+    }
+  },
+  "10.66.3.12:3306": {
+    "SELECT VERSION()": { "columns": ["VERSION()"], "rows": [["5.7.44-log"]] },
+    "SHOW REPLICA STATUS": { "columns": ["Source_Host", "Source_Port"], "rows": [["10.66.3.11", 3306]] },
+    "SELECT SCHEMA_NAME FROM information_schema.SCHEMATA": {
+      "columns": ["SCHEMA_NAME"],
+      "rows": [["information_schema"], ["mysql"], ["performance_schema"], ["sys"], ["orders"], ["pay"], ["trade_center"]]
+    }
+  },
+  "10.66.4.21:6379": {
+    "INFO server": "# Server\r\nredis_version:6.2.14\r\nredis_mode:standalone\r\n",
+    "INFO replication": "# Replication\r\nrole:slave\r\nmaster_host:10.66.4.20\r\nmaster_port:6379\r\nmaster_link_status:up\r\n"
+  }
+}

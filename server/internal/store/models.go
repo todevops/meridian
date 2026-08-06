@@ -266,9 +266,12 @@ type User struct {
 	PasswordHash string `gorm:"size:128;not null" json:"-"`
 	Status       string `gorm:"size:16;not null;index" json:"status"` // active/disabled
 	// IsBuiltin 标记内置账号（admin/collector），内置账号不可停用、不可改角色。
-	IsBuiltin bool      `gorm:"not null;default:false" json:"is_builtin"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	IsBuiltin bool `gorm:"not null;default:false" json:"is_builtin"`
+	// ScopeAppIDs 为数据范围（F-005）：用户归属的 biz_app CI ID 列表；
+	// 空表示不受限（admin/operator/viewer 等全量角色）。
+	ScopeAppIDs datatypes.JSONType[[]string] `json:"scope_app_ids"`
+	CreatedAt   time.Time                    `json:"created_at"`
+	UpdatedAt   time.Time                    `json:"updated_at"`
 }
 
 // Role 是角色元数据实体（编码/显示名/说明）。
@@ -278,7 +281,7 @@ type Role struct {
 	Code        string `gorm:"size:64;not null;uniqueIndex" json:"code"`
 	Name        string `gorm:"size:128;not null" json:"name"`
 	Description string `gorm:"size:512" json:"description"`
-	// IsBuiltin 标记内置角色（admin/operator/viewer/collector），内置角色不可删除。
+	// IsBuiltin 标记内置角色（admin/operator/viewer/collector/system_owner），内置角色不可删除。
 	IsBuiltin bool      `gorm:"not null;default:false" json:"is_builtin"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -298,20 +301,31 @@ type AuditLog struct {
 	CreatedAt time.Time         `json:"created_at"`
 }
 
+// 稽核规则类型（F-034）：audit 为稽核规则（默认），auto_ingest 为自动入库白名单。
+const (
+	AuditRuleTypeAudit      = "audit"
+	AuditRuleTypeAutoIngest = "auto_ingest"
+)
+
 // AuditRule 是稽核规则实体（F-081）：声明式规则 = 模型过滤条件 + 断言表达式 + 待办模板，
 // 存库热更新，由稽核引擎每日执行或手动触发（POST /governance/rules/{id}/run）。
 // Assertion 表达式语法见 internal/auditrules（如 `not_empty(owner)`、
 // `not_empty(cluster_name) and backup_count > 0`）。
+// type=auto_ingest 时规则作为自动入库白名单（F-034）：调和判定 create 且
+// 模型+属性命中（filter 等值 + assertion 断言为真）时直接建档 status=active，不入发现池。
 type AuditRule struct {
 	ID        string `gorm:"primaryKey;size:36" json:"id"`
 	Name      string `gorm:"size:128;not null" json:"name"`
 	ModelCode string `gorm:"size:64;not null;index" json:"model_code"` // 目标模型编码（如 host）
+	// Type 为规则类型：audit（默认）/auto_ingest；存量行迁移后取默认 audit。
+	Type string `gorm:"size:16;not null;default:audit;index" json:"type"`
 	// Filter 为 CI 属性等值过滤条件（如 {"env":"prod"}），空对象表示模型内全部 CI。
 	Filter    datatypes.JSONMap `json:"filter"`
 	Assertion string            `gorm:"size:512;not null" json:"assertion"` // 断言表达式，为真即合规
 	Message   string            `gorm:"size:512;not null" json:"message"`   // 违规时生成待办的标题
 	Enabled   bool              `gorm:"not null;default:true;index" json:"enabled"`
-	// DryRun 为演练模式：只出违规报告，不产生/关闭待办。
+	// DryRun 为演练模式：只出违规报告，不产生/关闭待办；
+	// auto_ingest 规则 dry_run=true 时不参与自动建档（只出报告）。
 	DryRun    bool       `gorm:"not null;default:false" json:"dry_run"`
 	LastRunAt *time.Time `json:"last_run_at,omitempty"`
 	CreatedAt time.Time  `json:"created_at"`

@@ -126,8 +126,14 @@ func (s *Server) globalSearch(c *gin.Context) {
 
 	// CI 分组：属性全文匹配，副标题带所属模型名。
 	if can("ci", "read") {
+		// 数据范围（F-005）：受约束用户只搜归属闭包内的资产（AC-F005-02）。
+		set, restricted, err := s.ciVisibleSet(c)
+		if err != nil {
+			respondError(c, http.StatusInternalServerError, CodeInternal, "计算数据范围失败", nil)
+			return
+		}
 		var cis []store.CI
-		if err := ciKeywordScope(s.db.Model(&store.CI{}), q).
+		if err := applyScopeFilter(ciKeywordScope(s.db.Model(&store.CI{}), q), set, restricted).
 			Order("created_at ASC").Limit(limit).Find(&cis).Error; err != nil {
 			respondError(c, http.StatusInternalServerError, CodeInternal, "搜索 CI 失败", nil)
 			return

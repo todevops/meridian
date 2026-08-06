@@ -310,7 +310,7 @@ function RulesTab() {
           <div>
             <CardTitle className="text-base">稽核规则</CardTitle>
             <CardDescription>
-              声明式规则：模型过滤条件 + 断言表达式；每日定时执行，违规生成整改待办
+              声明式规则：模型过滤条件 + 断言表达式；稽核规则每日执行产出整改待办，自动入库白名单规则对判定为新建的发现记录直接建档
             </CardDescription>
           </div>
           <Button
@@ -351,6 +351,7 @@ function RulesTab() {
             <thead>
               <tr className="border-b text-left text-muted-foreground">
                 <th className="px-4 py-2.5 font-medium">名称</th>
+                <th className="px-4 py-2.5 font-medium">类型</th>
                 <th className="px-4 py-2.5 font-medium">模型</th>
                 <th className="px-4 py-2.5 font-medium">启用</th>
                 <th className="px-4 py-2.5 font-medium">模式</th>
@@ -363,6 +364,14 @@ function RulesTab() {
                 <tr key={rule.id} className="border-b last:border-0 hover:bg-muted/40">
                   <td className="max-w-[240px] truncate px-4 py-2.5 font-medium" title={rule.name}>
                     {rule.name}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    {/* 旧数据无 type 字段时按稽核展示 */}
+                    {rule.type === "auto_ingest" ? (
+                      <Badge variant="outline">自动入库白名单</Badge>
+                    ) : (
+                      <Badge variant="secondary">稽核</Badge>
+                    )}
                   </td>
                   <td className="px-4 py-2.5 text-muted-foreground">{rule.model_code}</td>
                   <td className="px-4 py-2.5">

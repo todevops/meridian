@@ -37,9 +37,11 @@ import {
 import {
   ApiError,
   createUser,
+  getApplicationTree,
   listRoles,
   listUsers,
   patchUser,
+  type AppTreeApp,
   type Paged,
   type Role,
   type User,
@@ -139,6 +141,7 @@ export default function UsersPage() {
               <TableHead>用户名</TableHead>
               <TableHead>显示名</TableHead>
               <TableHead>角色</TableHead>
+              <TableHead>范围</TableHead>
               <TableHead>状态</TableHead>
               <TableHead>创建时间</TableHead>
               <TableHead className="w-20 text-right">操作</TableHead>
@@ -148,7 +151,7 @@ export default function UsersPage() {
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 6 }).map((_, j) => (
+                  {Array.from({ length: 7 }).map((_, j) => (
                     <TableCell key={j}>
                       <Skeleton className="h-4 w-full" />
                     </TableCell>
@@ -181,6 +184,19 @@ export default function UsersPage() {
                     </div>
                   </TableCell>
                   <TableCell>
+                    {/* 数据范围：绑定应用数；未绑定即全量可见 */}
+                    {user.scope_app_ids && user.scope_app_ids.length > 0 ? (
+                      <Badge
+                        variant="secondary"
+                        title={(user.scope_app_names ?? []).join("、")}
+                      >
+                        {user.scope_app_ids.length} 个应用
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground">全量</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
                     <Badge
                       variant={user.status === "active" ? "default" : "outline"}
                     >
@@ -207,7 +223,7 @@ export default function UsersPage() {
             ) : (
               <TableRow>
                 <TableCell
-                  colSpan={6}
+                  colSpan={7}
                   className="py-10 text-center text-muted-foreground"
                 >
                   暂无用户
@@ -275,6 +291,9 @@ function UserFormDialog({
   const [password, setPassword] = useState("")
   const [status, setStatus] = useState<UserStatus>("active")
   const [selectedRoles, setSelectedRoles] = useState<string[]>([])
+  // 数据范围：绑定的 biz_app CI id 集合与候选应用列表
+  const [scopeAppIds, setScopeAppIds] = useState<string[]>([])
+  const [apps, setApps] = useState<AppTreeApp[]>([])
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -285,13 +304,28 @@ function UserFormDialog({
       setPassword("")
       setStatus(user?.status ?? "active")
       setSelectedRoles(user?.roles ?? [])
+      setScopeAppIds(user?.scope_app_ids ?? [])
       setSubmitError(null)
+      // 候选应用来自业务树（两级扁平化 + 未归属应用）
+      getApplicationTree()
+        .then((tree) =>
+          setApps([...tree.lines.flatMap((line) => line.apps), ...tree.unassigned])
+        )
+        .catch(() => setApps([]))
     }
   }, [open, user])
 
   function toggleRole(code: string, checked: boolean) {
     setSelectedRoles((prev) =>
       checked ? [...prev, code] : prev.filter((c) => c !== code)
+    )
+  }
+
+  function toggleScopeApp(appId: string) {
+    setScopeAppIds((prev) =>
+      prev.includes(appId)
+        ? prev.filter((id) => id !== appId)
+        : [...prev, appId]
     )
   }
 
@@ -320,7 +354,9 @@ function UserFormDialog({
         await patchUser(user.id, {
           display_name: displayName.trim(),
           ...(password ? { password } : {}),
-          ...(user.is_builtin ? {} : { status, roles: selectedRoles }),
+          ...(user.is_builtin
+            ? {}
+            : { status, roles: selectedRoles, scope_app_ids: scopeAppIds }),
         })
       } else {
         await createUser({
@@ -426,6 +462,40 @@ function UserFormDialog({
                   ))}
                 </div>
               </div>
+              {isEdit && (
+                <div className="flex flex-col gap-1.5">
+                  <Label>数据范围</Label>
+                  <div className="flex max-h-40 flex-wrap gap-1.5 overflow-y-auto rounded-lg border p-3">
+                    {apps.length === 0 ? (
+                      <span className="text-xs text-muted-foreground">
+                        暂无业务应用数据
+                      </span>
+                    ) : (
+                      apps.map((app) => {
+                        const active = scopeAppIds.includes(app.id)
+                        return (
+                          <button
+                            key={app.id}
+                            type="button"
+                            aria-pressed={active}
+                            onClick={() => toggleScopeApp(app.id)}
+                            className={
+                              active
+                                ? "rounded-full border border-primary bg-primary/10 px-2.5 py-1 text-xs text-primary"
+                                : "rounded-full border px-2.5 py-1 text-xs text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                            }
+                          >
+                            {app.name ?? app.code ?? app.id}
+                          </button>
+                        )
+                      })
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    已选 {scopeAppIds.length} 个应用；不选表示全量可见。选中后该账号仅可见所选应用及其关联资产
+                  </p>
+                </div>
+              )}
               {isEdit && (
                 <div className="flex flex-col gap-1.5">
                   <Label>账号状态</Label>

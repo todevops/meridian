@@ -638,6 +638,10 @@ export interface User {
   /** 角色编码数组 */
   roles: string[]
   is_builtin: boolean
+  /** 数据范围：绑定的 biz_app CI id 数组；空/缺省表示全量可见 */
+  scope_app_ids?: string[]
+  /** 数据范围应用名（与 scope_app_ids 对齐，便于列表直接展示） */
+  scope_app_names?: string[]
   created_at: string
   updated_at: string
 }
@@ -649,12 +653,14 @@ export interface UserCreateRequest {
   roles?: string[]
 }
 
-/** 全字段可选；password 传入即重置密码，roles 传入即整体替换角色 */
+/** 全字段可选；password 传入即重置密码，roles/scope_app_ids 传入即整体替换 */
 export interface UserPatchRequest {
   display_name?: string
   status?: UserStatus
   password?: string
   roles?: string[]
+  /** 数据范围绑定的 biz_app CI id 数组；传空数组表示放开为全量可见 */
+  scope_app_ids?: string[]
 }
 
 export interface ListUsersParams {
@@ -1177,10 +1183,15 @@ export function getQualityDrilldown(
 
 // ---------- 稽核规则与整改待办（F-081） ----------
 
+/** 规则类型：audit=稽核（每日执行产整改待办），auto_ingest=自动入库白名单（阶段四 4A，F-034） */
+export type GovernanceRuleType = "audit" | "auto_ingest"
+
 /** 稽核规则（声明式：模型过滤条件 + 断言表达式 + 待办模板） */
 export interface GovernanceRule {
   id: string
   name: string
+  /** 规则类型；后端旧数据缺省时按 audit 展示 */
+  type?: GovernanceRuleType
   /** 目标模型编码 */
   model_code: string
   /** 过滤条件表达式（圈定规则适用的 CI 范围） */
@@ -1200,6 +1211,8 @@ export interface GovernanceRule {
 
 export interface GovernanceRuleRequest {
   name: string
+  /** 规则类型，缺省按 audit 建档；创建后不可修改 */
+  type?: GovernanceRuleType
   model_code: string
   filter: string
   assertion: string
@@ -1586,4 +1599,27 @@ export interface CIImpact {
 
 export function getCIImpact(ciId: string): Promise<CIImpact> {
   return request<CIImpact>(`/v1/cis/${encodeURIComponent(ciId)}/impact`)
+}
+
+// ---------- DBMS EOL 清单导出（阶段四 4A，US-3.3） ----------
+
+/** EOL 报表过滤条件（组件精确 + 版本前缀） */
+export interface EolReportParams {
+  /** 组件类型，如 mysql / redis；缺省为全部组件 */
+  component?: string
+  /** 版本前缀，如 5.7；缺省为全部版本 */
+  version_prefix?: string
+}
+
+/** 下载 EOL 清单 CSV（响应带 BOM，表头：实例地址/组件类型/版本/角色/集群/所属业务/负责人） */
+export async function fetchEolReportCsv(
+  params: EolReportParams = {}
+): Promise<Blob> {
+  const res = await fetch(
+    `${BASE}/v1/dbms/eol-report${buildQuery({ ...params, format: "csv" })}`
+  )
+  if (!res.ok) {
+    throw new Error(`下载 EOL 清单失败（${res.status}）`)
+  }
+  return res.blob()
 }

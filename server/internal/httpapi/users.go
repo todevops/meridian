@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
 	"meridian/server/internal/auth"
@@ -24,19 +25,42 @@ type userPatchRequest struct {
 	Status      *string   `json:"status"`
 	Password    *string   `json:"password"`
 	Roles       *[]string `json:"roles"`
+	// ScopeAppIDs 为数据范围（F-005）：传入即整体替换；空数组表示不受限。
+	ScopeAppIDs *[]string `json:"scope_app_ids"`
 }
 
-// userPayload 组装 User 响应体（角色来自 Casbin 分组策略）。
+// userPayload 组装 User 响应体（角色来自 Casbin 分组策略；
+// scope_app_names 按 scope_app_ids 顺序解析 biz_app CI 名称，缺失给空串占位）。
 func (s *Server) userPayload(user *store.User) gin.H {
+	scopeIDs := user.ScopeAppIDs.Data()
+	if scopeIDs == nil {
+		scopeIDs = []string{}
+	}
+	scopeNames := make([]string, 0, len(scopeIDs))
+	if len(scopeIDs) > 0 {
+		var apps []store.CI
+		if err := s.db.Select("id", "attributes").Where("id IN ?", scopeIDs).Find(&apps).Error; err == nil {
+			nameByID := map[string]string{}
+			for _, app := range apps {
+				name, _ := app.Attributes["name"].(string)
+				nameByID[app.ID] = name
+			}
+			for _, id := range scopeIDs {
+				scopeNames = append(scopeNames, nameByID[id])
+			}
+		}
+	}
 	return gin.H{
-		"id":           user.ID,
-		"username":     user.Username,
-		"display_name": user.DisplayName,
-		"status":       user.Status,
-		"roles":        stringSlice(s.auth.UserRoleCodes(user.ID)),
-		"is_builtin":   user.IsBuiltin,
-		"created_at":   user.CreatedAt,
-		"updated_at":   user.UpdatedAt,
+		"id":              user.ID,
+		"username":        user.Username,
+		"display_name":    user.DisplayName,
+		"status":          user.Status,
+		"roles":           stringSlice(s.auth.UserRoleCodes(user.ID)),
+		"is_builtin":      user.IsBuiltin,
+		"scope_app_ids":   scopeIDs,
+		"scope_app_names": scopeNames,
+		"created_at":      user.CreatedAt,
+		"updated_at":      user.UpdatedAt,
 	}
 }
 
@@ -180,6 +204,17 @@ func (s *Server) patchUser(c *gin.Context) {
 			return
 		}
 	}
+	if req.ScopeAppIDs != nil {
+		if user.IsBuiltin && len(*req.ScopeAppIDs) > 0 {
+			respondError(c, http.StatusBadRequest, CodeBadRequest, "内置账号为全量角色，不允许设置数据范围", nil)
+			return
+		}
+		if msg := s.validateScopeAppIDs(*req.ScopeAppIDs); msg != "" {
+			respondError(c, http.StatusBadRequest, CodeBadRequest, msg, nil)
+			return
+		}
+		updates["scope_app_ids"] = datatypes.NewJSONType(*req.ScopeAppIDs)
+	}
 	if len(updates) > 0 {
 		if err := s.db.Model(user).Updates(updates).Error; err != nil {
 			respondError(c, http.StatusInternalServerError, CodeInternal, "更新用户失败", nil)
@@ -198,6 +233,25 @@ func (s *Server) patchUser(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, s.userPayload(user))
+}
+
+// validateScopeAppIDs 校验数据范围 ID 全部为 biz_app 模型的存量 CI，返回错误信息（空串表示通过）。
+func (s *Server) validateScopeAppIDs(ids []string) string {
+	if len(ids) == 0 {
+		return ""
+	}
+	var model store.Model
+	if err := s.db.First(&model, "code = ?", "biz_app").Error; err != nil {
+		return "biz_app 模型不存在，无法设置数据范围"
+	}
+	var count int64
+	if err := s.db.Model(&store.CI{}).Where("model_id = ? AND id IN ?", model.ID, ids).Count(&count).Error; err != nil {
+		return "校验数据范围失败"
+	}
+	if int(count) != len(ids) {
+		return "scope_app_ids 含不存在或非 biz_app 的应用 CI"
+	}
+	return ""
 }
 
 // findUser 按路径参数 :user_id 加载用户；不存在时写 404 并返回 ok=false。

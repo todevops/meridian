@@ -16,11 +16,17 @@ import (
 type auditRuleRequest struct {
 	Name      *string        `json:"name"`
 	ModelCode *string        `json:"model_code"`
+	Type      *string        `json:"type"` // audit（默认）/auto_ingest（白名单）
 	Filter    map[string]any `json:"filter"`
 	Assertion *string        `json:"assertion"`
 	Message   *string        `json:"message"`
 	Enabled   *bool          `json:"enabled"`
 	DryRun    *bool          `json:"dry_run"`
+}
+
+// validRuleType 校验规则类型取值合法。
+func validRuleType(t string) bool {
+	return t == store.AuditRuleTypeAudit || t == store.AuditRuleTypeAutoIngest
 }
 
 // listAuditRules 处理 GET /api/v1/governance/rules。
@@ -59,10 +65,19 @@ func (s *Server) createAuditRule(c *gin.Context) {
 	rule := store.AuditRule{
 		Name:      *req.Name,
 		ModelCode: *req.ModelCode,
+		Type:      store.AuditRuleTypeAudit,
 		Filter:    filter,
 		Assertion: *req.Assertion,
 		Message:   *req.Message,
 		Enabled:   true,
+	}
+	if req.Type != nil && *req.Type != "" {
+		if !validRuleType(*req.Type) {
+			respondError(c, http.StatusBadRequest, CodeValidationFailed,
+				fmt.Sprintf("type 取值 %q 非法（audit/auto_ingest）", *req.Type), nil)
+			return
+		}
+		rule.Type = *req.Type
 	}
 	if req.Enabled != nil {
 		rule.Enabled = *req.Enabled
@@ -94,6 +109,14 @@ func (s *Server) patchAuditRule(c *gin.Context) {
 	}
 	if req.ModelCode != nil && *req.ModelCode != "" {
 		updates["model_code"] = *req.ModelCode
+	}
+	if req.Type != nil {
+		if !validRuleType(*req.Type) {
+			respondError(c, http.StatusBadRequest, CodeValidationFailed,
+				fmt.Sprintf("type 取值 %q 非法（audit/auto_ingest）", *req.Type), nil)
+			return
+		}
+		updates["type"] = *req.Type
 	}
 	if req.Filter != nil {
 		updates["filter"] = datatypes.JSONMap(req.Filter)
@@ -128,9 +151,14 @@ func (s *Server) patchAuditRule(c *gin.Context) {
 }
 
 // runAuditRule 处理 POST /api/v1/governance/rules/{id}/run：手动执行一次稽核。
+// auto_ingest 白名单规则不产生稽核待办（由调和引擎 create 分支消费），拒绝手动执行。
 func (s *Server) runAuditRule(c *gin.Context) {
 	rule, ok := s.resolveAuditRule(c, c.Param("id"))
 	if !ok {
+		return
+	}
+	if rule.Type == store.AuditRuleTypeAutoIngest {
+		respondError(c, http.StatusBadRequest, CodeBadRequest, "白名单规则（auto_ingest）不支持手动稽核执行", nil)
 		return
 	}
 	result, err := auditrules.NewEngine(s.db).RunRule(c.Request.Context(), rule)

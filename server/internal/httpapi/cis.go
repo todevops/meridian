@@ -56,6 +56,13 @@ func (s *Server) listCIs(c *gin.Context) {
 	if keyword := strings.TrimSpace(c.Query("keyword")); keyword != "" {
 		q = ciKeywordScope(q, keyword)
 	}
+	// 数据范围（F-005）：受约束用户仅可见归属闭包内的 CI。
+	set, restricted, err := s.ciVisibleSet(c)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, CodeInternal, "计算数据范围失败", nil)
+		return
+	}
+	q = applyScopeFilter(q, set, restricted)
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
 		respondError(c, http.StatusInternalServerError, CodeInternal, "查询 CI 总数失败", nil)
@@ -141,6 +148,9 @@ func (s *Server) getCI(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if !s.scopeAllows(c, ci.ID) {
+		return
+	}
 	c.JSON(http.StatusOK, ci)
 }
 
@@ -223,6 +233,9 @@ func (s *Server) patchCI(c *gin.Context) {
 func (s *Server) listCIRelations(c *gin.Context) {
 	ci, ok := s.resolveCI(c, c.Param("ci_id"))
 	if !ok {
+		return
+	}
+	if !s.scopeAllows(c, ci.ID) {
 		return
 	}
 	var rels []store.CIRelation
