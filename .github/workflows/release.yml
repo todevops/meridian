@@ -1,0 +1,52 @@
+name: Release
+
+# 打标签即发布：beta-* 标签标记为 prerelease，v* 为正式版
+on:
+  push:
+    tags: ["v*", "beta-*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: 构建并发布二进制（${{ matrix.goos }}/${{ matrix.goarch }}）
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: windows
+            goarch: amd64
+    env:
+      CGO_ENABLED: "0"
+      GOOS: ${{ matrix.goos }}
+      GOARCH: ${{ matrix.goarch }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+
+      - name: 构建四个组件二进制
+        run: |
+          set -euo pipefail
+          ext=""
+          if [ "$GOOS" = "windows" ]; then ext=".exe"; fi
+          mkdir -p dist
+          (cd server     && go build -trimpath -ldflags "-s -w" -o "../dist/meridian-server-${GOOS}-${GOARCH}${ext}"     ./cmd/server)
+          (cd collectors && go build -trimpath -ldflags "-s -w" -o "../dist/meridian-collector-${GOOS}-${GOARCH}${ext}"  ./cmd/collector)
+          (cd migrator   && go build -trimpath -ldflags "-s -w" -o "../dist/meridian-migrate-${GOOS}-${GOARCH}${ext}"    ./cmd/migrate)
+          (cd mocks      && go build -trimpath -ldflags "-s -w" -o "../dist/meridian-mockd-${GOOS}-${GOARCH}${ext}"      ./cmd/mockd)
+
+      - name: 生成校验和
+        run: cd dist && sha256sum * > checksums.txt
+
+      - name: 发布 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          prerelease: ${{ startsWith(github.ref_name, 'beta') }}

@@ -23,19 +23,23 @@ jobs:
       - run: pnpm lint
       - run: pnpm build
 
-  # 后端：Go 模块位于 server/ 子目录
-  server:
-    name: Server (Go)
+  # Go 模块矩阵：server / collectors / migrator / mocks
+  go-modules:
+    name: Go ${{ matrix.module }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [server, collectors, migrator, mocks]
     defaults:
       run:
-        working-directory: server
+        working-directory: ${{ matrix.module }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: "1.26.x"
-          cache-dependency-path: server/go.sum
+          cache-dependency-path: ${{ matrix.module }}/go.sum
       - run: go build ./...
       - run: go vet ./...
       - run: go test ./...
