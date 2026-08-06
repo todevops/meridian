@@ -1,134 +1,143 @@
 # Meridian
 
-纯自研 Meridian CMDB（配置管理数据库）平台 monorepo：Go 后端 + Next.js 前端 + 插件化发现引擎。
+纯自研企业级 CMDB（配置管理数据库）平台 monorepo，用于替换 NetBox 并覆盖 **IPAM、DCIM、NMS、DBMS、K8s 元数据管理**五大功能域，并向 UModel 输出实体图作为 AIOps 底座。技术栈：**Go 后端（Gin + GORM + Casbin）+ Next.js 16 前端（React 19 + shadcn/ui + Tailwind）+ 插件化发现引擎（开源组件 + 官方 SDK 双轨）**，前后端以 `pkg/openapi/` 契约为唯一事实来源。
+
+## 功能总览
+
+| 域 | 能力 |
+|---|---|
+| 资产中心 | 主机（n9e 心跳消费零 Agent）、虚拟化三级（集群→ESXi→VM）、云资源（阿里云/火山 ECS/VPC/RDS/SLB）、网络设备台账、数据库/中间件台账（版本/主从/EOL）、K8s 元数据（集群/命名空间/工作负载/Service/Ingress，Pod 实况直查不落库）、应用系统聚合页（SRE 第一入口） |
+| 基础设施 | IPAM（前缀树/分配/冲突检测/利用率）、DCIM（机房/机柜/U 位挂载/容量总览）、网络拓扑（LLDP 自动成图 + 主机接入端口定位） |
+| 发现与治理 | 自研发现引擎（8 款采集器 + n9e 消费器）、调和引擎（UID 优先链 + 冲突入池）、发现池工作台、自动入库白名单、稽核规则与整改待办、数据质量看板、生命周期状态机（退役三方会签 + n9e/JumpServer/IPAM 联动）、黑设备告警 |
+| 平台配置 | 模型引擎（运行时自定义模型/属性/关系/校验）、集成管理（AES-GCM 加密凭据库）、采集任务调度（builtin/exec 执行器）、审计日志查询 |
+| 系统管理 | 用户/角色（Casbin RBAC）、数据范围权限（业务系统维度最小授权，越权 404） |
+| 集成输出 | NetBox 迁移（direct/pipeline/verify 三模式）、n9e 双向集成（消费+回写）、Oxidized 配置备份（设备源供给+事件回写）、JumpServer 资产同步、UModel 实体/关联输出 |
 
 ## 目录结构
 
 ```
 cmdb/
-├── apps/
-│   └── web/               # 前端 Web 应用（Next.js 16 + React 19 + shadcn/ui）
-├── packages/
-│   ├── ui/                # 共享 UI 组件库（shadcn/ui，包名 @workspace/ui）
-│   ├── eslint-config/     # 共享 ESLint 配置（@workspace/eslint-config）
-│   └── typescript-config/ # 共享 TypeScript 配置（@workspace/typescript-config）
-├── server/                # Go 后端（Gin + GORM，并行开发中）
-├── pkg/                   # 前后端共享契约（OpenAPI，见 pkg/README.md）
-├── docker-compose.yml     # 本地开发依赖：PostgreSQL / Redis / NATS JetStream
-├── .env.example           # 环境变量样例
-├── package.json           # pnpm workspace 根（turbo 编排）
-├── pnpm-workspace.yaml    # workspace 声明：apps/*、packages/*
-└── turbo.json             # turbo 任务编排（dev/build/lint 等）
+├── apps/web/            # 前端（Next.js 16 + React 19 + shadcn/ui，包名 web）
+├── packages/            # ui / eslint-config / typescript-config 共享包
+├── server/              # Go 后端 API（module meridian/server）
+├── collectors/          # 八款采集器（aliyun/volc/dbdiscover/librenms/ipscan/vsphere/k8s/dbprobe）
+├── migrator/            # NetBox 迁移工具（direct / pipeline / verify 三模式）
+├── mocks/               # 官方接口 mock 平台（单二进制 mockd，11 系统 :19001-:19011）
+├── pkg/openapi/         # 前后端共享契约（OpenAPI 3.0.3，见 pkg/README.md）
+├── scripts/             # demo.sh / seed-models.sh / auth-login.sh + 种子与样例数据
+├── docs/acceptance/     # 各阶段浏览器验收报告与截图证据
+├── docker-compose.yml   # 本地开发依赖：PostgreSQL 16 / Redis 7 / NATS JetStream
+└── .github/workflows/   # CI（web lint+build / server build+vet+test）
 ```
 
 ## 快速开始
 
-工具链为项目内便携版（Node 24 / Go 1.26 / pnpm），位于 `../.tools`，每条命令前需先加载环境：
+工具链为项目内便携版（Node 24 / Go 1.26 / pnpm），位于 `../.tools`，每条命令前先加载环境：
 
 ```bash
 source ../.tools/env.sh
 ```
 
-安装依赖并启动前端开发服务器：
+**一键演示**（无需 Docker，SQLite 临时库，结束自动清理）：
 
 ```bash
-pnpm install
-pnpm dev                 # turbo 启动全部应用的 dev（当前仅 web）
-# 或只启动前端：
-pnpm --filter web dev    # 等价于在 apps/web 下执行 next dev
+bash scripts/demo.sh    # 起 server → 导入 18 个种子模型 → 样例发现记录调和 → 打印主机清单
 ```
 
-前端构建与检查：
+**手工体验**：
 
 ```bash
-pnpm build               # turbo build（产出 apps/web/.next）
-pnpm lint                # turbo lint
-```
+# 终端 1：后端（SQLite 本地开发库）
+cd server && DB_SQLITE_PATH=./meridian-dev.db go run ./cmd/server
 
-后端运行（`server/` 目录由他人并行开发）：
-
-```bash
-cd server
-go run ./cmd/server
-```
-
-本地依赖服务（PostgreSQL / Redis / NATS JetStream）：
-
-```bash
-docker compose up -d
-```
-
-环境变量按需从样例复制：`cp .env.example .env`。
-
-## 认证与 RBAC
-
-除 `/healthz`、`/readyz` 与 `/api/v1/auth/login` 外，所有 `/api/v1` 接口均需登录并按权限点鉴权。
-
-- **认证**：用户名/密码登录（bcrypt 哈希存储），签发 JWT（无状态会话），经 httpOnly cookie（`meridian_token`）或 `Authorization: Bearer` 携带。
-- **鉴权**：Casbin RBAC，策略经 gorm-adapter 持久化到业务库（`casbin_rule` 表）。权限点为代码内固定目录（`server/internal/auth/catalog.go`），角色可自定义（角色→权限点、用户→角色全部由策略承载）。
-- **内置账号**（首次启动种子，初始密码见下）：`admin`（角色 admin，全权限）、`collector`（角色 collector，仅 `discovery:write`，供采集器上报）。
-- **内置角色**：`admin`（全部权限点）、`operator`（模型/CI/IPAM/DCIM 维护 + 发现上报）、`viewer`（只读）、`collector`（仅上报）。内置角色不可删除，admin 角色权限点不可修改。
-- **前端**：`apps/web/proxy.ts`（Next 16 Proxy，原 middleware）做无 cookie 预检跳登录页；`401` 时 `lib/api.ts` 自动跳转 `/login`；系统管理菜单按权限点显示（`/settings/users`、`/settings/roles`）。
-
-相关环境变量（见 `.env.example`）：
-
-| 变量 | 说明 | 默认 |
-| --- | --- | --- |
-| `JWT_SECRET` | JWT 签名密钥，生产必须显式配置 | 开发默认值（启动打警告） |
-| `TOKEN_TTL_HOURS` | 会话有效期（小时） | `24` |
-| `ADMIN_INITIAL_PASSWORD` | admin 初始密码（仅首次种子生效） | `admin123` |
-| `COLLECTOR_INITIAL_PASSWORD` | collector 初始密码（仅首次种子生效） | `collector123` |
-
-脚本（`scripts/demo.sh`、`scripts/seed-models.sh`）统一先走 `scripts/auth-login.sh` 登录再调业务接口；可用 `MERIDIAN_AUTH_USER` / `MERIDIAN_AUTH_PASSWORD` 覆盖登录账号。
-
-## 搜索
-
-- **全局搜索**：`GET /api/v1/search?q=...`，跨模型/CI/IPAM 分组返回，前端 landing 页（`/`）即全局搜索页；分组按用户权限点裁剪。
-- **模块内搜索**：`/api/v1/models` 与 `/api/v1/cis` 支持 `keyword`（CI 为全属性值大小写不敏感匹配），IPAM/用户管理页自带关键字过滤。
-- 实现选型：**PostgreSQL 全文检索**（`LOWER(...) LIKE` + 生产可用 `pg_trgm` 索引），不引入 ES 等外部中间件；搜索契约稳定，未来可在 `httpapi/search.go` 一层之后替换为 ES 实现。
-
-## DCIM
-
-`GET /api/v1/dcim/overview` 提供机房/机柜/U 位/电力容量总览（按机房聚合 + 逐机柜明细）；机柜经 `POST /api/v1/cis/{id}/relations`（`located_in`，one_to_one 自动改挂）分配到机房；机柜 U 位容量属性统一为 `u_capacity`（兼容历史 `u_total`）。
-
-## 垂直切片演示
-
-前置：工具链为项目内便携版，每条命令前先加载环境：
-
-```bash
-source ../.tools/env.sh
-```
-
-一键演示（本机无需 Docker，server 使用 SQLite 临时库，演示结束自动清理）：
-
-```bash
-bash scripts/demo.sh
-```
-
-`demo.sh` 依次完成：构建并启动 server（`DB_SQLITE_PATH` 指向临时文件）→ 等待 `/healthz` 就绪 → 调用 `scripts/seed-models.sh` 导入 18 个种子模型 → 逐条 POST 三条样例发现记录（新主机建档 / 同 ident 更新 / 同 IP 不同 ident 冲突入池）→ 查询并打印主机 CI 清单 → 停止 server 并清理临时目录。
-
-手工体验（server 与 web 分别启动）：
-
-```bash
-# 终端 1：启动后端（SQLite 本地库文件，相对路径以 server/ 为基准）
-cd server
-DB_SQLITE_PATH=./meridian-dev.db go run ./cmd/server
-
-# 终端 2：导入种子模型（BASE_URL 默认 http://localhost:8080，可用环境变量覆盖）
+# 终端 2：导入种子模型 + 启动 mocks（可选，供采集器联调）
 bash scripts/seed-models.sh
+cd mocks && go run ./cmd/mockd    # n9e/NetBox/LibreNMS/TSDB/双云/vcsim/Oxidized/K8s/JumpServer/UModel
 
-# 终端 3：启动前端
-pnpm --filter web dev
+# 终端 3：前端
+pnpm install && pnpm --filter web dev
 ```
 
-随后浏览器访问 http://localhost:3000 ，先以 `admin` / `admin123`（或 `ADMIN_INITIAL_PASSWORD` 设定的值）登录，再依次体验模型列表、CI 实例列表、发现记录演示等页面。种子模型定义见 `scripts/seed/`（host 模型含 `reconcile_keys=["ident","ip"]` 及方案 5.1 节 n9e 映射属性），样例发现记录见 `scripts/sample-records/`。
+浏览器访问 http://localhost:3000 ，以 `admin` / `admin123` 登录（可用 `ADMIN_INITIAL_PASSWORD` 覆盖）。
 
-## 阶段二进度
+**跑一次全量采集**（需 mockd 在线）：
 
-### 迭代 2A（导航 + 凭据 + 迁移管道 + 模型扩展）
+```bash
+cd collectors && go build -o collector ./cmd/collector
+MERIDIAN_API_URL=http://localhost:8080 MERIDIAN_USERNAME=admin MERIDIAN_PASSWORD=admin123 \
+LIBRENMS_API_TOKEN=dev VSPHERE_URL=http://localhost:19007/sdk VSPHERE_USERNAME=user VSPHERE_PASSWORD=pass \
+K8S_API_URL=http://localhost:19009 K8S_TOKEN=dev-k8s-token \
+./collector -collector=all        # 加 -dry-run 只打印不上报
+```
 
-- **分组导航（F-090）**：侧边栏重构为六组结构——概览、资产、发现、网络（IPAM）、机房（DCIM）、系统管理，支持分组折叠记忆、发现池待办徽标、按权限点过滤与面包屑；新页面一律按组归位，不再平铺入口。
-- **集成管理 `/integrations`（F-005）**：凭据纳管页面，覆盖 vCenter / 阿里云 / 火山 / SNMP / DB / kubeconfig / SSH-IPMI / n9e / NetBox 九类凭据的创建、轮换与使用审计；接口永不回传明文，采集任务仅按引用使用凭据。
-- **采集任务 `/discovery`（F-033）**：采集任务与数据源管理页面，任务创建时选择集成凭据，展示状态（idle/running/error）、最近成功时间、失败原因与运行历史，支持手动触发运行。
-- **NetBox 迁移管道模式（F-074）**：migrator 新增 `--mode=pipeline`，将迁移数据翻译为标准发现记录批量写入发现管道（限速 + 退避），借调和引擎获得幂等（重跑 = 更新）。
-- **模型扩展（F-027/F-028 前置）**：种子模型自 9 个扩至 11 个——新增 `biz_line`（业务线：编码唯一、负责人、等级 critical/high/normal）与 `k8s_namespace`（K8s 命名空间：集群 + 名称，`mounted_to → biz_app` 整挂应用）；`biz_app` 补 `belongs_to → biz_line`、`deployed_on → host`、`depends_on → db_instance`，`k8s_workload` 补 `in_namespace → k8s_namespace`（命名空间挂载后工作负载沿「工作负载 → 命名空间 → 应用」链继承归属），`host` 补 `connected_to → network_device`（接入于）。种子定义见 `scripts/seed/`，导入仍走 `scripts/seed-models.sh`。
+**NetBox 迁移与对账**：
+
+```bash
+cd migrator
+NETBOX_API_URL=http://localhost:19002 NETBOX_TOKEN=dev \
+MERIDIAN_API_URL=http://localhost:8080 MERIDIAN_USERNAME=admin MERIDIAN_PASSWORD=admin123 \
+go run ./cmd/migrate -mode=pipeline    # 迁移（幂等，重跑=更新）
+go run ./cmd/migrate -mode=verify      # 双轨对账（一致率 100% 退出码 0）
+```
+
+## 常用命令
+
+```bash
+# 前端
+pnpm lint / pnpm typecheck / pnpm build        # 质量门禁（CI 同款）
+
+# 后端与各工具（均为独立 Go module）
+cd server     && go build ./... && go vet ./... && go test ./...
+cd collectors && go build ./... && go vet ./... && go test ./...
+cd migrator   && go test ./...
+cd mocks      && go test ./...
+
+# 契约校验
+pnpm dlx js-yaml pkg/openapi/openapi.yaml
+pnpm dlx js-yaml pkg/openapi/ipam-dcim.yaml
+```
+
+## 认证、权限与数据范围
+
+- 除 `/healthz`、`/readyz`、`/api/v1/auth/login` 外全部接口需登录并按权限点鉴权；会话经 httpOnly cookie（`meridian_token`）或 Bearer 携带。
+- 内置角色：`admin`（全量）、`operator`（日常维护）、`viewer`（只读）、`collector`（仅采集上报）、`system_owner`（全量只读 + 强制数据范围）。
+- **数据范围权限**（F-005）：用户绑定业务系统（`scope_app_ids`）后，列表/搜索/详情沿关系链裁剪至本系统资产，越权直访返回 404（不泄露存在性）；IPAM/DCIM 共享设施一期全量只读不裁剪。
+- 凭据经 AES-256-GCM 加密存凭据库（`/integrations` 纳管轮换），明文永不回传；数据库凭据/连接串/Secret 内容零入库（安全红线）。
+
+## 页面地图
+
+```
+总览        /            全局搜索落地页
+            /dashboard   运营仪表盘（数据质量看板）
+资产中心    /applications  应用系统（两级业务树 + 聚合视图 + 依赖拓扑 + 影响面）
+            /hosts         主机（统一视图：VM/物理机/云主机/K8s Node）
+            /virtualization 虚拟化三级视图
+            /network/devices 网络设备台账（含配置备份卡）
+            /dbms          数据库与中间件（集群统计 + 版本分布 + EOL 导出）
+            /k8s           容器云（集群→命名空间→工作负载 + Pod 实况）
+            /cloud         云资源（ECS/VPC/RDS/SLB）
+基础设施    /ipam          IPAM 地址管理
+            /dcim          机房与机柜（U 位矩阵挂载）
+            /topology      网络拓扑（LLDP 成图 + 主机接入定位）
+发现与治理  /pool          发现池工作台
+            /alerts        告警事件
+            /discovery     采集任务与数据源
+            /governance    稽核与整改（规则/待办/待退役）
+平台配置    /models        模型管理
+            /integrations  集成管理（凭据纳管）
+            /audit         审计日志
+系统管理    /settings/users  用户管理（数据范围绑定）
+            /settings/roles  角色管理
+```
+
+## 验证与验收
+
+- 全模块单测（server/collectors/migrator/mocks）+ 前端 lint/typecheck/build 为提交门禁。
+- 各阶段浏览器验收（browser-harness 驱动真实浏览器）报告与截图证据见 `docs/acceptance/`。
+- 生态联调零真实依赖：`mocks/` 覆盖全部外部系统官方接口形态（n9e/NetBox/LibreNMS/TSDB/双云/vcsim/Oxidized/K8s apiserver/JumpServer/UModel EntityStore）。
+
+## 更多文档
+
+- 架构与开发约定：`AGENTS.md`
+- 接口契约：`pkg/openapi/`（契约先行：改契约 → 评审 → 前后端并行）
+- 需求与方案（上级目录）：`企业CMDB产品需求文档PRD.md`、`企业CMDB系统建设方案.md`、各阶段实施规格说明
