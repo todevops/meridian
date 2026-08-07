@@ -30,7 +30,7 @@ jobs:
         with:
           go-version: "1.26.x"
 
-      - name: 构建四个组件二进制
+      - name: 构建三个组件二进制
         run: |
           set -euo pipefail
           ext=""
@@ -39,7 +39,6 @@ jobs:
           (cd server     && go build -trimpath -ldflags "-s -w" -o "../dist/meridian-server-${GOOS}-${GOARCH}${ext}"     ./cmd/server)
           (cd collectors && go build -trimpath -ldflags "-s -w" -o "../dist/meridian-collector-${GOOS}-${GOARCH}${ext}"  ./cmd/collector)
           (cd migrator   && go build -trimpath -ldflags "-s -w" -o "../dist/meridian-migrate-${GOOS}-${GOARCH}${ext}"    ./cmd/migrate)
-          (cd mocks      && go build -trimpath -ldflags "-s -w" -o "../dist/meridian-mockd-${GOOS}-${GOARCH}${ext}"      ./cmd/mockd)
 
       - name: 生成校验和
         run: cd dist && sha256sum * > checksums.txt
